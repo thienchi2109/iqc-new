@@ -1,0 +1,308 @@
+export interface QcRunData {
+  id: string
+  value: number
+  z: number
+  side: 'above' | 'below' | 'on'
+  createdAt: Date
+  levelId: string
+}
+
+export interface QcLimit {
+  mean: number
+  sd: number
+  cv: number
+}
+
+export interface Violation {
+  ruleCode: string
+  severity: 'warn' | 'fail'
+  windowSize?: number
+  details?: Record<string, any>
+}
+
+export interface EvaluationResult {
+  z: number
+  side: 'above' | 'below' | 'on'
+  status: 'accepted' | 'rejected' | 'pending'
+  violations: Violation[]
+}
+
+export class WestgardEngine {
+  /**
+   * Calculate Z-score from value and limits
+   */
+  static calculateZScore(value: number, mean: number, sd: number): number {
+    if (sd === 0) return 0
+    return (value - mean) / sd
+  }
+
+  /**
+   * Determine which side of mean the value falls on
+   */
+  static determineSide(z: number): 'above' | 'below' | 'on' {
+    const threshold = 0.05 // Small threshold to account for floating point precision
+    if (z > threshold) return 'above'
+    if (z < -threshold) return 'below'
+    return 'on'
+  }
+
+  /**
+   * Check if two values are on the same side of mean
+   */
+  static sameSide(z1: number, z2: number): boolean {
+    const side1 = WestgardEngine.determineSide(z1)
+    const side2 = WestgardEngine.determineSide(z2)
+    return side1 === side2 && (side1 === 'above' || side1 === 'below')
+  }
+
+  /**
+   * Check for consecutive points on the same side
+   */
+  static consecutiveOneSide(zScores: number[], count: number): boolean {
+    if (zScores.length < count) return false
+    
+    for (let i = 0; i <= zScores.length - count; i++) {
+      const slice = zScores.slice(i, i + count)
+      const sides = slice.map(z => WestgardEngine.determineSide(z))
+      
+      // Check if all are above mean
+      if (sides.every(side => side === 'above')) return true
+      
+      // Check if all are below mean
+      if (sides.every(side => side === 'below')) return true
+    }
+    
+    return false
+  }
+
+  /**
+   * Check for n consecutive points beyond same ±nSD
+   */
+  static nConsecutiveBeyondSD(zScores: number[], count: number, sdLevel: number): boolean {
+    if (zScores.length < count) return false
+    
+    for (let i = 0; i <= zScores.length - count; i++) {
+      const slice = zScores.slice(i, i + count)
+      
+      // Check consecutive points all above +sdLevel
+      if (slice.every(z => z > sdLevel)) return true
+      
+      // Check consecutive points all below -sdLevel
+      if (slice.every(z => z < -sdLevel)) return true
+    }
+    
+    return false
+  }
+
+  /**
+   * Check for trend (consecutive increasing or decreasing)
+   */
+  static hasTrend(zScores: number[], count: number): boolean {
+    if (zScores.length < count) return false
+    
+    for (let i = 0; i <= zScores.length - count; i++) {
+      const slice = zScores.slice(i, i + count)
+      
+      // Check increasing trend
+      let isIncreasing = true
+      let isDecreasing = true
+      
+      for (let j = 1; j < slice.length; j++) {
+        if (slice[j] <= slice[j - 1]) isIncreasing = false
+        if (slice[j] >= slice[j - 1]) isDecreasing = false
+      }
+      
+      if (isIncreasing || isDecreasing) return true
+    }
+    
+    return false
+  }
+
+  /**
+   * Evaluate within-level Westgard rules for a single QC level
+   */
+  static evaluateWithinLevelRules(
+    currentZ: number,
+    historicalData: QcRunData[]
+  ): Violation[] {
+    const violations: Violation[] = []
+    const allZ = [currentZ, ...historicalData.map(run => run.z)]
+
+    // 1-3s rule: Single point beyond ±3SD (fail)
+    if (Math.abs(currentZ) > 3) {
+      violations.push({
+        ruleCode: '1-3s',
+        severity: 'fail',
+        details: { z: currentZ, threshold: 3 }
+      })
+    }
+
+    // 1-2s rule: Single point beyond ±2SD (warning)
+    if (Math.abs(currentZ) > 2) {
+      violations.push({
+        ruleCode: '1-2s',
+        severity: 'warn',
+        details: { z: currentZ, threshold: 2 }
+      })
+    }
+
+    // 2-2s rule: Two consecutive points beyond same ±2SD (fail)
+    if (WestgardEngine.nConsecutiveBeyondSD(allZ, 2, 2)) {
+      violations.push({
+        ruleCode: '2-2s',
+        severity: 'fail',
+        windowSize: 2,
+        details: { sequence: allZ.slice(0, 2) }
+      })
+    }
+
+    // 4-1s rule: Four consecutive points beyond same ±1SD (fail)
+    if (WestgardEngine.nConsecutiveBeyondSD(allZ, 4, 1)) {
+      violations.push({
+        ruleCode: '4-1s',
+        severity: 'fail',
+        windowSize: 4,
+        details: { sequence: allZ.slice(0, 4) }
+      })
+    }
+
+    // 10x rule: Ten consecutive points on same side of mean (fail)
+    if (WestgardEngine.consecutiveOneSide(allZ, 10)) {
+      violations.push({
+        ruleCode: '10x',
+        severity: 'fail',
+        windowSize: 10,
+        details: { sequence: allZ.slice(0, 10) }
+      })
+    }
+
+    // 7T rule: Seven consecutive points with trend (fail)
+    if (WestgardEngine.hasTrend(allZ, 7)) {
+      violations.push({
+        ruleCode: '7T',
+        severity: 'fail',
+        windowSize: 7,
+        details: { sequence: allZ.slice(0, 7) }
+      })
+    }
+
+    return violations
+  }
+
+  /**
+   * Evaluate across-level rules for runs in the same group
+   */
+  static evaluateAcrossLevelRules(
+    currentRunsByLevel: Record<string, { z: number; levelId: string }>
+  ): Violation[] {
+    const violations: Violation[] = []
+    const runs = Object.values(currentRunsByLevel)
+    
+    if (runs.length < 2) return violations
+
+    // R-4s rule: Range between levels exceeds 4SD (fail)
+    const zValues = runs.map(run => run.z)
+    const range = Math.max(...zValues) - Math.min(...zValues)
+    
+    if (range > 4) {
+      violations.push({
+        ruleCode: 'R-4s',
+        severity: 'fail',
+        details: { 
+          range, 
+          threshold: 4,
+          levels: runs.map(r => r.levelId),
+          zValues 
+        }
+      })
+    }
+
+    // 2of3-2s rule: Two of three levels beyond ±2SD (fail)
+    if (runs.length >= 3) {
+      const beyond2SD = zValues.filter(z => Math.abs(z) > 2).length
+      if (beyond2SD >= 2) {
+        violations.push({
+          ruleCode: '2of3-2s',
+          severity: 'fail',
+          details: {
+            count: beyond2SD,
+            threshold: 2,
+            levels: runs.map(r => r.levelId),
+            zValues
+          }
+        })
+      }
+    }
+
+    return violations
+  }
+
+  /**
+   * Main evaluation method that combines all rules
+   */
+  static evaluateQcRun(
+    value: number,
+    limits: QcLimit,
+    historicalData: QcRunData[],
+    peerRuns?: Record<string, { z: number; levelId: string }>
+  ): EvaluationResult {
+    // Calculate Z-score and side
+    const z = WestgardEngine.calculateZScore(value, limits.mean, limits.sd)
+    const side = WestgardEngine.determineSide(z)
+
+    // Evaluate within-level rules
+    const withinLevelViolations = WestgardEngine.evaluateWithinLevelRules(z, historicalData)
+
+    // Evaluate across-level rules if peer runs provided
+    const acrossLevelViolations = peerRuns 
+      ? WestgardEngine.evaluateAcrossLevelRules(peerRuns)
+      : []
+
+    // Combine all violations
+    const allViolations = [...withinLevelViolations, ...acrossLevelViolations]
+
+    // Determine status based on violations
+    const hasFail = allViolations.some(v => v.severity === 'fail')
+    const hasWarn = allViolations.some(v => v.severity === 'warn')
+    
+    let status: 'accepted' | 'rejected' | 'pending'
+    if (hasFail) {
+      status = 'rejected'
+    } else if (hasWarn) {
+      status = 'pending' // Requires review
+    } else {
+      status = 'accepted'
+    }
+
+    return {
+      z,
+      side,
+      status,
+      violations: allViolations
+    }
+  }
+
+  /**
+   * Get rule configuration with defaults
+   */
+  static getDefaultRuleConfig() {
+    return {
+      enabled: [
+        '1-3s',  // Single point beyond ±3SD (fail)
+        '1-2s',  // Single point beyond ±2SD (warn)
+        '2-2s',  // Two consecutive points beyond same ±2SD (fail)
+        'R-4s',  // Range between levels exceeds 4SD (fail)
+        '4-1s',  // Four consecutive points beyond same ±1SD (fail)
+        '10x',   // Ten consecutive points on same side (fail)
+        '7T',    // Seven consecutive points with trend (fail)
+      ],
+      optional: [
+        '2of3-2s', // Two of three levels beyond ±2SD (fail)
+        '3-1s',    // Three consecutive points beyond same ±1SD (fail)
+        '6x',      // Six consecutive points on same side (fail)
+        '8x',      // Eight consecutive points on same side (fail)
+        '12x',     // Twelve consecutive points on same side (fail)
+      ]
+    }
+  }
+}
