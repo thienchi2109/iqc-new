@@ -3,8 +3,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Brush } from 'recharts'
-import { Select } from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
+import CustomSelect from '@/components/ui/CustomSelect'
 import { Input } from '@/components/ui/input'
 
 interface ChartDataPoint {
@@ -187,9 +186,7 @@ export default function LjChart() {
     <div className="max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Biểu đồ Levey-Jennings</h1>
-        <p className="text-gray-600 mt-1">
-          Biểu đồ L-J tương tác với hiển thị quy tắc Westgard
-        </p>
+        <p className="text-gray-600 mt-1">Biểu đồ L-J tương tác với quy tắc Westgard</p>
       </div>
 
       {/* Filters */}
@@ -198,67 +195,51 @@ export default function LjChart() {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Thiết bị *
-            </label>
-            <Select value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
-              <option value="">Chọn thiết bị</option>
-              {devices?.map((device: any) => (
-                <option key={device.id} value={device.id}>
-                  {device.code} - {device.name}
-                </option>
-              ))}
-            </Select>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Thiết bị *</label>
+            <CustomSelect
+              value={deviceId}
+              onChange={(value) => setDeviceId(value)}
+              options={devices?.map((device: any) => ({ value: device.id, label: `${device.code} - ${device.name}` })) || []}
+              placeholder="Chọn thiết bị"
+            />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Xét nghiệm *
-            </label>
-            <Select value={testId} onChange={(e) => setTestId(e.target.value)}>
-              <option value="">Chọn xét nghiệm</option>
-              {tests?.map((test: any) => (
-                <option key={test.id} value={test.id}>
-                  {test.code} - {test.name}
-                </option>
-              ))}
-            </Select>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Xét nghiệm *</label>
+            <CustomSelect
+              value={testId}
+              onChange={(value) => setTestId(value)}
+              options={tests?.map((test: any) => ({ value: test.id, label: `${test.code} - ${test.name}` })) || []}
+              placeholder="Chọn xét nghiệm"
+            />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Mức QC *
-            </label>
-            <Select value={levelId} onChange={(e) => setLevelId(e.target.value)} disabled={!testId}>
-              <option value="">Chọn mức</option>
-              {qcLevels?.map((level: any) => (
-                <option key={level.id} value={level.id}>
-                  {level.level} - {level.material}
-                </option>
-              ))}
-            </Select>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Mức QC *</label>
+            <CustomSelect
+              value={levelId}
+              onChange={(value) => setLevelId(value)}
+              options={qcLevels?.map((level: any) => ({ value: level.id, label: `${level.level} - ${level.material}` })) || []}
+              placeholder="Chọn mức"
+              disabled={!testId}
+            />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Lô QC *
-            </label>
-            <Select value={lotId} onChange={(e) => setLotId(e.target.value)} disabled={!levelId}>
-              <option value="">Chọn lô</option>
-              {qcLots?.map((lot: any) => (
-                <option key={lot.id} value={lot.id}>
-                  {lot.lotCode} (HSD: {lot.expireDate})
-                </option>
-              ))}
-            </Select>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Lô QC *</label>
+            <CustomSelect
+              value={lotId}
+              onChange={(value) => setLotId(value)}
+              options={qcLots?.map((lot: any) => ({ value: lot.id, label: `${lot.lotCode} (HSD: ${lot.expireDate})` })) || []}
+              placeholder="Chọn lô"
+              disabled={!levelId}
+            />
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Từ ngày
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Từ ngày</label>
             <Input
               type="date"
               value={dateFrom}
@@ -266,9 +247,7 @@ export default function LjChart() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Đến ngày
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Đến ngày</label>
             <Input
               type="date"
               value={dateTo}
@@ -285,7 +264,7 @@ export default function LjChart() {
             Biểu đồ L-J
             {qcLimits && (
               <span className="text-sm font-normal text-gray-600 ml-2">
-                (Mean: {mean}, SD: ±{sd})
+                (Mean: {mean}, SD: {sd})
               </span>
             )}
           </h2>
@@ -312,8 +291,8 @@ export default function LjChart() {
         ) : !chartData || chartData.length === 0 ? (
           <div className="h-96 flex items-center justify-center text-gray-500">
             {deviceId && testId && levelId && lotId 
-              ? 'Không tìm thấy dữ liệu cho các bộ lọc đã chọn'
-              : 'Vui lòng chọn thiết bị, xét nghiệm, mức và lô để xem biểu đồ'
+              ? "Không tìm thấy dữ liệu cho các bộ lọc đã chọn"
+              : "Vui lòng chọn thiết bị, xét nghiệm, mức và lô để xem biểu đồ"
             }
           </div>
         ) : (

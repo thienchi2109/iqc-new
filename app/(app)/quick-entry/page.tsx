@@ -59,59 +59,58 @@ interface LevelEntry {
 export default function QuickEntry() {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
-  
+
   const [deviceId, setDeviceId] = useState('')
   const [testId, setTestId] = useState('')
   const [runAt, setRunAt] = useState(() => {
-    const now = new Date();
-    const offset = now.getTimezoneOffset();
-    const localDate = new Date(now.getTime() - (offset * 60 * 1000));
-    return localDate.toISOString().slice(0, 16);
+    const now = new Date()
+    const offset = now.getTimezoneOffset()
+    const localDate = new Date(now.getTime() - offset * 60 * 1000)
+    return localDate.toISOString().slice(0, 16)
   })
   const [levels, setLevels] = useState<LevelEntry[]>([
-    { levelId: '', lotId: '', value: '', unitId: '', methodId: '', notes: '' }
+    { levelId: '', lotId: '', value: '', unitId: '', methodId: '', notes: '' },
   ])
 
-  // Fetch master data
+  // Master data
   const { data: devices } = useQuery<Device[]>({
     queryKey: ['devices'],
-    queryFn: () => fetch('/api/devices').then(res => res.json()),
+    queryFn: () => fetch('/api/devices').then((res) => res.json()),
   })
 
   const { data: tests } = useQuery<Test[]>({
     queryKey: ['tests'],
-    queryFn: () => fetch('/api/tests').then(res => res.json()),
+    queryFn: () => fetch('/api/tests').then((res) => res.json()),
   })
 
   const { data: units } = useQuery<Unit[]>({
     queryKey: ['units'],
-    queryFn: () => fetch('/api/units').then(res => res.json()),
+    queryFn: () => fetch('/api/units').then((res) => res.json()),
   })
 
   const { data: methods } = useQuery<Method[]>({
     queryKey: ['methods'],
-    queryFn: () => fetch('/api/methods').then(res => res.json()),
+    queryFn: () => fetch('/api/methods').then((res) => res.json()),
   })
 
-  // Fetch QC levels when test is selected
+  // Dependent data
   const { data: qcLevels } = useQuery<QcLevel[]>({
     queryKey: ['qc-levels', testId],
-    queryFn: () => fetch(`/api/qc/levels?testId=${testId}`).then(res => res.json()),
+    queryFn: () => fetch(`/api/qc/levels?testId=${testId}`).then((res) => res.json()),
     enabled: !!testId,
   })
 
-  // Fetch QC lots when level is selected
   const { data: qcLots } = useQuery<QcLot[]>({
-    queryKey: ['qc-lots', levels.map(l => l.levelId).filter(Boolean)],
+    queryKey: ['qc-lots', levels.map((l) => l.levelId).filter(Boolean)],
     queryFn: () => {
-      const levelIds = levels.map(l => l.levelId).filter(Boolean)
+      const levelIds = levels.map((l) => l.levelId).filter(Boolean)
       if (levelIds.length === 0) return []
-      return fetch(`/api/qc/lots?${levelIds.map(id => `levelId=${id}`).join('&')}`).then(res => res.json())
+      return fetch(`/api/qc/lots?${levelIds.map((id) => `levelId=${id}`).join('&')}`).then((res) => res.json())
     },
-    enabled: levels.some(l => l.levelId),
+    enabled: levels.some((l) => l.levelId),
   })
 
-  // Create run group mutation
+  // Mutations
   const createRunGroupMutation = useMutation({
     mutationFn: async (data: { deviceId: string; testId: string; runAt: string }) => {
       const response = await fetch('/api/qc/run-groups', {
@@ -124,7 +123,6 @@ export default function QuickEntry() {
     },
   })
 
-  // Create QC run mutation
   const createQcRunMutation = useMutation({
     mutationFn: async (data: any) => {
       const response = await fetch('/api/qc/runs', {
@@ -141,18 +139,21 @@ export default function QuickEntry() {
     },
   })
 
-  const selectedTest = tests?.find(t => t.id === testId)
+  const selectedTest = tests?.find((t) => t.id === testId)
 
   const addLevel = () => {
     if (levels.length < 3) {
-      setLevels([...levels, { 
-        levelId: '', 
-        lotId: '', 
-        value: '', 
-        unitId: selectedTest?.defaultUnitId || '', 
-        methodId: selectedTest?.defaultMethodId || '', 
-        notes: '' 
-      }])
+      setLevels([
+        ...levels,
+        {
+          levelId: '',
+          lotId: '',
+          value: '',
+          unitId: selectedTest?.defaultUnitId || '',
+          methodId: selectedTest?.defaultMethodId || '',
+          notes: '',
+        },
+      ])
     }
   }
 
@@ -170,32 +171,24 @@ export default function QuickEntry() {
 
   const handleTestChange = (newTestId: string) => {
     setTestId(newTestId)
-    const test = tests?.find(t => t.id === newTestId)
-    
-    // Auto-fill unit and method for all levels
+    const test = tests?.find((t) => t.id === newTestId)
     if (test) {
-      setLevels(levels.map(level => ({
-        ...level,
-        unitId: test.defaultUnitId || level.unitId,
-        methodId: test.defaultMethodId || level.methodId,
-      })))
+      setLevels(
+        levels.map((level) => ({
+          ...level,
+          unitId: test.defaultUnitId || level.unitId,
+          methodId: test.defaultMethodId || level.methodId,
+        }))
+      )
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
     if (!session?.user?.id) return
 
     try {
-      // Create run group first
-      const runGroup = await createRunGroupMutation.mutateAsync({
-        deviceId,
-        testId,
-        runAt,
-      })
-
-      // Create QC runs for each level
+      const runGroup = await createRunGroupMutation.mutateAsync({ deviceId, testId, runAt })
       for (const level of levels) {
         if (level.levelId && level.value) {
           await createQcRunMutation.mutateAsync({
@@ -217,13 +210,13 @@ export default function QuickEntry() {
       setDeviceId('')
       setTestId('')
       setRunAt(() => {
-        const now = new Date();
-        const offset = now.getTimezoneOffset();
-        const localDate = new Date(now.getTime() - (offset * 60 * 1000));
-        return localDate.toISOString().slice(0, 16);
+        const now = new Date()
+        const offset = now.getTimezoneOffset()
+        const localDate = new Date(now.getTime() - offset * 60 * 1000)
+        return localDate.toISOString().slice(0, 16)
       })
       setLevels([{ levelId: '', lotId: '', value: '', unitId: '', methodId: '', notes: '' }])
-      
+
       alert('Tạo lần chạy QC thành công!')
     } catch (error) {
       console.error('Lỗi khi tạo lần chạy QC:', error)
@@ -234,49 +227,36 @@ export default function QuickEntry() {
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Nhập nhanh</h1>
-        <p className="text-gray-600 mt-1">
-          Nhập dữ liệu QC cho tối đa 3 mức trong một phiên
-        </p>
+        <h1 className="text-3xl font-bold text-gray-900">Nhập kết quả QC</h1>
+        <p className="text-gray-600 mt-1">Nhập dữ liệu QC cho tối đa 3 mức trong một phiên</p>
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-md border border-gray-200 p-6 space-y-6">
         {/* Run Information */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Thiết bị *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Thiết bị *</label>
             <CustomSelect
               value={deviceId}
               onChange={(value) => setDeviceId(value)}
-              options={devices?.map(device => ({ value: device.id, label: `${device.code} - ${device.name}` })) || []}
+              options={devices?.map((device) => ({ value: device.id, label: `${device.code} - ${device.name}` })) || []}
               placeholder="Chọn thiết bị"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Xét nghiệm *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Xét nghiệm *</label>
             <CustomSelect
               value={testId}
               onChange={(value) => handleTestChange(value)}
-              options={tests?.map(test => ({ value: test.id, label: `${test.code} - ${test.name}` })) || []}
+              options={tests?.map((test) => ({ value: test.id, label: `${test.code} - ${test.name}` })) || []}
               placeholder="Chọn xét nghiệm"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Ngày/giờ chạy *
-            </label>
-            <Input
-              type="datetime-local"
-              value={runAt}
-              onChange={(e) => setRunAt(e.target.value)}
-              required
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ngày/giờ chạy *</label>
+            <Input type="datetime-local" value={runAt} onChange={(e) => setRunAt(e.target.value)} required />
           </div>
         </div>
 
@@ -296,12 +276,7 @@ export default function QuickEntry() {
               <div className="flex justify-between items-center mb-3">
                 <h4 className="font-medium text-gray-900">Mức {index + 1}</h4>
                 {levels.length > 1 && (
-                  <Button
-                    type="button"
-                    onClick={() => removeLevel(index)}
-                    variant="destructive"
-                    size="sm"
-                  >
+                  <Button type="button" onClick={() => removeLevel(index)} variant="destructive" size="sm">
                     Xóa
                   </Button>
                 )}
@@ -309,34 +284,33 @@ export default function QuickEntry() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mức QC *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Mức QC *</label>
                   <CustomSelect
                     value={level.levelId}
                     onChange={(value) => updateLevel(index, 'levelId', value)}
-                    options={qcLevels?.map(qcLevel => ({ value: qcLevel.id, label: `${qcLevel.level} - ${qcLevel.material}` })) || []}
+                    options={qcLevels?.map((qcLevel) => ({ value: qcLevel.id, label: `${qcLevel.level} - ${qcLevel.material}` })) || []}
                     placeholder="Chọn mức"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Lô QC *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Lô QC *</label>
                   <CustomSelect
                     value={level.lotId}
                     onChange={(value) => updateLevel(index, 'lotId', value)}
-                    options={qcLots?.filter(lot => lot.levelId === level.levelId).map(lot => ({ value: lot.id, label: `${lot.lotCode} (HSD: ${lot.expireDate})` })) || []}
+                    options={
+                      qcLots?.filter((lot) => lot.levelId === level.levelId).map((lot) => ({
+                        value: lot.id,
+                        label: `${lot.lotCode} (HSD: ${lot.expireDate})`,
+                      })) || []
+                    }
                     placeholder="Chọn lô"
                     disabled={!level.levelId}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Giá trị *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Giá trị *</label>
                   <Input
                     type="number"
                     step="0.01"
@@ -348,33 +322,27 @@ export default function QuickEntry() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Đơn vị *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Đơn vị *</label>
                   <CustomSelect
                     value={level.unitId}
                     onChange={(value) => updateLevel(index, 'unitId', value)}
-                    options={units?.map(unit => ({ value: unit.id, label: unit.display })) || []}
+                    options={units?.map((unit) => ({ value: unit.id, label: unit.display })) || []}
                     placeholder="Chọn đơn vị"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Phương pháp *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phương pháp *</label>
                   <CustomSelect
                     value={level.methodId}
                     onChange={(value) => updateLevel(index, 'methodId', value)}
-                    options={methods?.map(method => ({ value: method.id, label: method.name })) || []}
+                    options={methods?.map((method) => ({ value: method.id, label: method.name })) || []}
                     placeholder="Chọn phương pháp"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ghi chú
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
                   <Input
                     type="text"
                     value={level.notes || ''}
@@ -396,27 +364,22 @@ export default function QuickEntry() {
               setDeviceId('')
               setTestId('')
               setRunAt(() => {
-                const now = new Date();
-                const offset = now.getTimezoneOffset();
-                const localDate = new Date(now.getTime() - (offset * 60 * 1000));
-                return localDate.toISOString().slice(0, 16);
+                const now = new Date()
+                const offset = now.getTimezoneOffset()
+                const localDate = new Date(now.getTime() - offset * 60 * 1000)
+                return localDate.toISOString().slice(0, 16)
               })
               setLevels([{ levelId: '', lotId: '', value: '', unitId: '', methodId: '', notes: '' }])
             }}
           >
             Làm mới
           </Button>
-          <Button
-            type="submit"
-            disabled={createRunGroupMutation.isPending || createQcRunMutation.isPending}
-          >
-            {(createRunGroupMutation.isPending || createQcRunMutation.isPending) 
-              ? 'Đang tạo...' 
-              : 'Tạo lần chạy QC'
-            }
+          <Button type="submit" disabled={createRunGroupMutation.isPending || createQcRunMutation.isPending}>
+            {createRunGroupMutation.isPending || createQcRunMutation.isPending ? 'Đang tạo...' : 'Tạo lần chạy QC'}
           </Button>
         </div>
       </form>
     </div>
   )
 }
+

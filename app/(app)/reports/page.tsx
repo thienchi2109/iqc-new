@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
+import CustomSelect from '@/components/ui/CustomSelect'
 import { Button } from '@/components/ui/button'
 
 interface ReportData {
@@ -40,7 +40,6 @@ export default function Reports() {
   const { data: reportData, isLoading } = useQuery<ReportData[]>({
     queryKey: ['report-summary', dateFrom, dateTo, deviceId, testId, groupBy],
     queryFn: async () => {
-      // Mock data for demonstration
       return [
         {
           device: 'AU5800',
@@ -90,7 +89,7 @@ export default function Reports() {
       params.append('groupBy', groupBy)
 
       // Mock Excel export - in real implementation, this would download a file
-      alert('Chức năng xuất Excel sẽ được triển khai ở đây')
+      alert('Chức năng xuất Excel sẽ được triển khai tại đây')
     } catch (error) {
       console.error('Xuất thất bại:', error)
       alert('Xuất thất bại. Vui lòng thử lại.')
@@ -101,9 +100,7 @@ export default function Reports() {
     <div className="max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Báo cáo</h1>
-        <p className="text-gray-600 mt-1">
-          Báo cáo tóm tắt và thống kê vi phạm
-        </p>
+        <p className="text-gray-600 mt-1">Báo cáo tóm tắt và thống kê vi phạm</p>
       </div>
 
       {/* Filters */}
@@ -112,9 +109,7 @@ export default function Reports() {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Từ ngày
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Từ ngày</label>
             <Input
               type="date"
               value={dateFrom}
@@ -123,9 +118,7 @@ export default function Reports() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Đến ngày
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Đến ngày</label>
             <Input
               type="date"
               value={dateTo}
@@ -134,53 +127,43 @@ export default function Reports() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Thiết bị
-            </label>
-            <Select value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
-              <option value="">Tất cả thiết bị</option>
-              {devices?.map((device: any) => (
-                <option key={device.id} value={device.id}>
-                  {device.code} - {device.name}
-                </option>
-              ))}
-            </Select>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Thiết bị</label>
+            <CustomSelect
+              value={deviceId}
+              onChange={(value) => setDeviceId(value)}
+              options={devices?.map((device: any) => ({ value: device.id, label: `${device.code} - ${device.name}` })) || []}
+              placeholder="Tất cả thiết bị"
+            />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Xét nghiệm
-            </label>
-            <Select value={testId} onChange={(e) => setTestId(e.target.value)}>
-              <option value="">Tất cả xét nghiệm</option>
-              {tests?.map((test: any) => (
-                <option key={test.id} value={test.id}>
-                  {test.code} - {test.name}
-                </option>
-              ))}
-            </Select>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Xét nghiệm</label>
+            <CustomSelect
+              value={testId}
+              onChange={(value) => setTestId(value)}
+              options={tests?.map((test: any) => ({ value: test.id, label: `${test.code} - ${test.name}` })) || []}
+              placeholder="Tất cả xét nghiệm"
+            />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nhóm theo
-            </label>
-            <Select value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
-              <option value="device">Thiết bị</option>
-              <option value="test">Xét nghiệm</option>
-              <option value="month">Tháng</option>
-              <option value="week">Tuần</option>
-            </Select>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nhóm theo</label>
+            <CustomSelect
+              value={groupBy}
+              onChange={(value) => setGroupBy(value)}
+              options={[
+                { value: 'device', label: 'Thiết bị' },
+                { value: 'test', label: 'Xét nghiệm' },
+                { value: 'month', label: 'Tháng' },
+                { value: 'week', label: 'Tuần' },
+              ]}
+            />
           </div>
         </div>
 
         <div className="mt-4 flex justify-end space-x-3">
-          <Button variant="outline" onClick={handleExport}>
-            Xuất Excel
-          </Button>
-          <Button>
-            Tạo báo cáo
-          </Button>
+          <Button variant="outline" onClick={handleExport}>Xuất Excel</Button>
+          <Button>Tạo báo cáo</Button>
         </div>
       </div>
 
@@ -227,87 +210,45 @@ export default function Reports() {
       {/* Detailed Report Table */}
       <div className="bg-white rounded-2xl shadow-md border border-gray-200">
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Tóm tắt hiệu suất QC
-          </h2>
+          <h2 className="text-xl font-semibold text-gray-900">Tóm tắt hiệu suất QC</h2>
         </div>
         
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Thiết bị
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Xét nghiệm
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Mức
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tổng số lần chạy
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Chấp nhận
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Cảnh báo
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Từ chối
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tỷ lệ chấp nhận
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tỷ lệ từ chối
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thiết bị</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Xét nghiệm</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mức</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng số lần chạy</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chấp nhận</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cảnh báo</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Từ chối</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tỷ lệ chấp nhận</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tỷ lệ từ chối</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
-                    Đang tải dữ liệu báo cáo...
-                  </td>
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500">Đang tải dữ liệu báo cáo...</td>
                 </tr>
               ) : reportData?.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
-                    Không có dữ liệu cho các tiêu chí đã chọn
-                  </td>
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500">Không có dữ liệu cho các tiêu chí đã chọn</td>
                 </tr>
               ) : (
                 reportData?.map((row, index) => (
                   <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {row.device}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {row.test}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {row.level}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {row.totalRuns}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
-                      {row.acceptedRuns}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-yellow-600">
-                      {row.warningRuns}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
-                      {row.rejectedRuns}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {row.acceptanceRate.toFixed(1)}%
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {row.rejectionRate.toFixed(1)}%
-                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{row.device}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{row.test}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{row.level}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{row.totalRuns}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">{row.acceptedRuns}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-yellow-600">{row.warningRuns}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">{row.rejectedRuns}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{row.acceptanceRate.toFixed(1)}%</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{row.rejectionRate.toFixed(1)}%</td>
                   </tr>
                 ))
               )}
@@ -318,3 +259,4 @@ export default function Reports() {
     </div>
   )
 }
+
