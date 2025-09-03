@@ -41,7 +41,7 @@ export const POST = withConfigAudit(
           source: existingLimit.source,
         }
         
-        const newValues = {
+        const newValues: Record<string, any> = {
           mean: limitData.mean.toString(),
           sd: limitData.sd.toString(),
           cv: cv.toFixed(2),
@@ -49,7 +49,7 @@ export const POST = withConfigAudit(
         }
 
         // Update existing limits
-        [result] = await db
+        const result = await db
           .update(qcLimits)
           .set({
             ...newValues,
@@ -74,6 +74,18 @@ export const POST = withConfigAudit(
         )
       } else {
         // Create new limits
+        const result = await db
+          .insert(qcLimits)
+          .values({
+            ...limitData,
+            mean: limitData.mean.toString(),
+            sd: limitData.sd.toString(),
+            cv: cv.toFixed(2),
+            createdBy: user.id,
+          })
+          .returning()
+
+        // Log the creation
         const newLimitData = {
           ...limitData,
           mean: limitData.mean.toString(),
@@ -81,17 +93,11 @@ export const POST = withConfigAudit(
           cv: cv.toFixed(2),
           createdBy: user.id,
         }
-
-        [result] = await db
-          .insert(qcLimits)
-          .values(newLimitData)
-          .returning()
-
-        // Log the creation
+        
         await AuditLogger.logCreate(
           user,
           'qc_limits',
-          result.id,
+          result[0]?.id || '',
           newLimitData,
           {
             testId: limitData.testId,
@@ -137,7 +143,7 @@ export const GET = withAuth(
       if (deviceId) conditions.push(eq(qcLimits.deviceId, deviceId))
 
       if (conditions.length > 0) {
-        query = query.where(and(...conditions))
+        query = query.where(and(...conditions)) as typeof query
       }
 
       const limits = await query

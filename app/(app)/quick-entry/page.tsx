@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
-import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/input'
+import CustomSelect from '@/components/ui/CustomSelect'
+import { Button } from '@/components/ui/button'
 
 interface Device {
   id: string
@@ -62,7 +62,12 @@ export default function QuickEntry() {
   
   const [deviceId, setDeviceId] = useState('')
   const [testId, setTestId] = useState('')
-  const [runAt, setRunAt] = useState(new Date().toISOString().slice(0, 16))
+  const [runAt, setRunAt] = useState(() => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset();
+    const localDate = new Date(now.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().slice(0, 16);
+  })
   const [levels, setLevels] = useState<LevelEntry[]>([
     { levelId: '', lotId: '', value: '', unitId: '', methodId: '', notes: '' }
   ])
@@ -211,22 +216,27 @@ export default function QuickEntry() {
       // Reset form
       setDeviceId('')
       setTestId('')
-      setRunAt(new Date().toISOString().slice(0, 16))
+      setRunAt(() => {
+        const now = new Date();
+        const offset = now.getTimezoneOffset();
+        const localDate = new Date(now.getTime() - (offset * 60 * 1000));
+        return localDate.toISOString().slice(0, 16);
+      })
       setLevels([{ levelId: '', lotId: '', value: '', unitId: '', methodId: '', notes: '' }])
       
-      alert('QC runs created successfully!')
+      alert('Tạo lần chạy QC thành công!')
     } catch (error) {
-      console.error('Error creating QC runs:', error)
-      alert('Error creating QC runs. Please try again.')
+      console.error('Lỗi khi tạo lần chạy QC:', error)
+      alert('Lỗi khi tạo lần chạy QC. Vui lòng thử lại.')
     }
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Quick Entry</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Nhập nhanh</h1>
         <p className="text-gray-600 mt-1">
-          Enter QC data for up to 3 levels in one session
+          Nhập dữ liệu QC cho tối đa 3 mức trong một phiên
         </p>
       </div>
 
@@ -235,43 +245,31 @@ export default function QuickEntry() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Device *
+              Thiết bị *
             </label>
-            <Select
+            <CustomSelect
               value={deviceId}
-              onChange={(e) => setDeviceId(e.target.value)}
-              required
-            >
-              <option value="">Select Device</option>
-              {devices?.map(device => (
-                <option key={device.id} value={device.id}>
-                  {device.code} - {device.name}
-                </option>
-              ))}
-            </Select>
+              onChange={(value) => setDeviceId(value)}
+              options={devices?.map(device => ({ value: device.id, label: `${device.code} - ${device.name}` })) || []}
+              placeholder="Chọn thiết bị"
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Test *
+              Xét nghiệm *
             </label>
-            <Select
+            <CustomSelect
               value={testId}
-              onChange={(e) => handleTestChange(e.target.value)}
-              required
-            >
-              <option value="">Select Test</option>
-              {tests?.map(test => (
-                <option key={test.id} value={test.id}>
-                  {test.code} - {test.name}
-                </option>
-              ))}
-            </Select>
+              onChange={(value) => handleTestChange(value)}
+              options={tests?.map(test => ({ value: test.id, label: `${test.code} - ${test.name}` })) || []}
+              placeholder="Chọn xét nghiệm"
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Run Date/Time *
+              Ngày/giờ chạy *
             </label>
             <Input
               type="datetime-local"
@@ -285,10 +283,10 @@ export default function QuickEntry() {
         {/* QC Levels */}
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-medium text-gray-900">QC Levels</h3>
+            <h3 className="text-lg font-medium text-gray-900">Mức QC</h3>
             {levels.length < 3 && (
               <Button type="button" onClick={addLevel} variant="outline" size="sm">
-                Add Level
+                Thêm mức
               </Button>
             )}
           </div>
@@ -296,7 +294,7 @@ export default function QuickEntry() {
           {levels.map((level, index) => (
             <div key={index} className="p-4 border border-gray-200 rounded-2xl bg-gray-50">
               <div className="flex justify-between items-center mb-3">
-                <h4 className="font-medium text-gray-900">Level {index + 1}</h4>
+                <h4 className="font-medium text-gray-900">Mức {index + 1}</h4>
                 {levels.length > 1 && (
                   <Button
                     type="button"
@@ -304,7 +302,7 @@ export default function QuickEntry() {
                     variant="destructive"
                     size="sm"
                   >
-                    Remove
+                    Xóa
                   </Button>
                 )}
               </div>
@@ -312,44 +310,32 @@ export default function QuickEntry() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    QC Level *
+                    Mức QC *
                   </label>
-                  <Select
+                  <CustomSelect
                     value={level.levelId}
-                    onChange={(e) => updateLevel(index, 'levelId', e.target.value)}
-                    required
-                  >
-                    <option value="">Select Level</option>
-                    {qcLevels?.map(qcLevel => (
-                      <option key={qcLevel.id} value={qcLevel.id}>
-                        {qcLevel.level} - {qcLevel.material}
-                      </option>
-                    ))}
-                  </Select>
+                    onChange={(value) => updateLevel(index, 'levelId', value)}
+                    options={qcLevels?.map(qcLevel => ({ value: qcLevel.id, label: `${qcLevel.level} - ${qcLevel.material}` })) || []}
+                    placeholder="Chọn mức"
+                  />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    QC Lot *
+                    Lô QC *
                   </label>
-                  <Select
+                  <CustomSelect
                     value={level.lotId}
-                    onChange={(e) => updateLevel(index, 'lotId', e.target.value)}
-                    required
+                    onChange={(value) => updateLevel(index, 'lotId', value)}
+                    options={qcLots?.filter(lot => lot.levelId === level.levelId).map(lot => ({ value: lot.id, label: `${lot.lotCode} (HSD: ${lot.expireDate})` })) || []}
+                    placeholder="Chọn lô"
                     disabled={!level.levelId}
-                  >
-                    <option value="">Select Lot</option>
-                    {qcLots?.filter(lot => lot.levelId === level.levelId).map(lot => (
-                      <option key={lot.id} value={lot.id}>
-                        {lot.lotCode} (Exp: {lot.expireDate})
-                      </option>
-                    ))}
-                  </Select>
+                  />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Value *
+                    Giá trị *
                   </label>
                   <Input
                     type="number"
@@ -363,49 +349,37 @@ export default function QuickEntry() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Unit *
+                    Đơn vị *
                   </label>
-                  <Select
+                  <CustomSelect
                     value={level.unitId}
-                    onChange={(e) => updateLevel(index, 'unitId', e.target.value)}
-                    required
-                  >
-                    <option value="">Select Unit</option>
-                    {units?.map(unit => (
-                      <option key={unit.id} value={unit.id}>
-                        {unit.display}
-                      </option>
-                    ))}
-                  </Select>
+                    onChange={(value) => updateLevel(index, 'unitId', value)}
+                    options={units?.map(unit => ({ value: unit.id, label: unit.display })) || []}
+                    placeholder="Chọn đơn vị"
+                  />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Method *
+                    Phương pháp *
                   </label>
-                  <Select
+                  <CustomSelect
                     value={level.methodId}
-                    onChange={(e) => updateLevel(index, 'methodId', e.target.value)}
-                    required
-                  >
-                    <option value="">Select Method</option>
-                    {methods?.map(method => (
-                      <option key={method.id} value={method.id}>
-                        {method.name}
-                      </option>
-                    ))}
-                  </Select>
+                    onChange={(value) => updateLevel(index, 'methodId', value)}
+                    options={methods?.map(method => ({ value: method.id, label: method.name })) || []}
+                    placeholder="Chọn phương pháp"
+                  />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Notes
+                    Ghi chú
                   </label>
                   <Input
                     type="text"
                     value={level.notes || ''}
                     onChange={(e) => updateLevel(index, 'notes', e.target.value)}
-                    placeholder="Optional notes"
+                    placeholder="Ghi chú tùy chọn"
                   />
                 </div>
               </div>
@@ -421,19 +395,24 @@ export default function QuickEntry() {
             onClick={() => {
               setDeviceId('')
               setTestId('')
-              setRunAt(new Date().toISOString().slice(0, 16))
+              setRunAt(() => {
+                const now = new Date();
+                const offset = now.getTimezoneOffset();
+                const localDate = new Date(now.getTime() - (offset * 60 * 1000));
+                return localDate.toISOString().slice(0, 16);
+              })
               setLevels([{ levelId: '', lotId: '', value: '', unitId: '', methodId: '', notes: '' }])
             }}
           >
-            Reset
+            Làm mới
           </Button>
           <Button
             type="submit"
             disabled={createRunGroupMutation.isPending || createQcRunMutation.isPending}
           >
             {(createRunGroupMutation.isPending || createQcRunMutation.isPending) 
-              ? 'Creating...' 
-              : 'Create QC Runs'
+              ? 'Đang tạo...' 
+              : 'Tạo lần chạy QC'
             }
           </Button>
         </div>

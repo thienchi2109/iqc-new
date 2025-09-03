@@ -15,7 +15,7 @@ export const GET = withAuth(
       let query = db.select().from(devices)
       
       if (isActive !== null) {
-        query = query.where(eq(devices.isActive, isActive === 'true'))
+        query = query.where(eq(devices.isActive, isActive === 'true')) as typeof query
       }
 
       const allDevices = await query.orderBy(devices.name)

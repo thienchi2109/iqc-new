@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     let query = db.select().from(qcLevels)
     
     if (testId) {
-      query = query.where(eq(qcLevels.testId, testId))
+      query = query.where(eq(qcLevels.testId, testId)) as typeof query
     }
 
     const levels = await query.orderBy(qcLevels.level)

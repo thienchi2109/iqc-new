@@ -1,0 +1,158 @@
+# C-Lab IQC Pro - Product Requirements Document
+
+## Overview
+C-Lab IQC Pro is a production-ready web application for Clinical Laboratory Internal Quality Control (IQC) management using Levey-Jennings charts and Westgard rules evaluation. This application standardizes the entire IQC process with automated Mean/SD calculations, real-time Levey-Jennings chart visualization, and multi-rule Westgard evaluation for clinical laboratory compliance (ISO 15189).
+
+## Business Problem
+Clinical laboratories must run internal quality control (IQC) samples daily for each parameter and machine to ensure accurate/stable measurement systems before releasing patient results. Current manual practices involve:
+- Manual data entry and chart drawing causing delays and errors
+- Inconsistent Westgard rule application leading to missed alerts or false alarms  
+- Lack of centralized data storage for trend analysis and audit evidence
+- Difficult traceability of root causes and corrective actions (CAPA) over time
+
+## Target Users
+- **Lab Technicians**: QC data entry, view own data and charts
+- **Lab Supervisors**: Approve/reject runs, CAPA management, view all data
+- **QA/QC Specialists**: Configure rules, generate reports, system-wide analysis  
+- **System Administrators**: Master data management, user administration
+
+## Core Features
+
+### Master Data Management (Must Have)
+- Device/Machine management with serial numbers and departments
+- Test/Analyte definitions with default units and methods
+- QC Levels management (L1, L2, L3) per test
+- QC Lot management with expiration dates and supplier tracking
+- Unit and analytical method catalogues
+- QC Limits configuration (Mean, SD, %CV) per test×level×lot×device combination
+
+### QC Data Entry & Processing (Must Have)
+- Quick Entry interface for multi-level QC data input
+- Automatic Z-score calculation and Mean position determination
+- Real-time Westgard rules evaluation (1-3s, 1-2s, 2-2s, R-4s, 4-1s, 10x, 7T)
+- Status determination with color coding (green/yellow/red)
+- Lot expiration validation before data acceptance
+- Automatic violation detection and logging
+
+### Levey-Jennings Charts (Must Have)
+- Interactive L-J charts with Mean, ±1SD, ±2SD, ±3SD reference lines
+- Color-coded data points based on violation status
+- Date range filtering and brushing capabilities
+- Tooltip displays with Z-scores, violations, performer info
+- Multi-level overlay capabilities (Should Have)
+
+### CAPA Management (Must Have)
+- Mandatory CAPA entry for rejected runs
+- Root cause analysis and corrective action tracking
+- Approval workflow for supervisors
+- Status tracking (draft, submitted, approved, rejected)
+
+### Reporting & Analytics (Must Have)
+- Violation rate reports by device/test/month
+- CAPA audit logs and status summaries
+- Excel export capabilities
+- Dashboard with warning/fail indicators
+
+### Security & Compliance (Must Have)
+- Role-based access control (Tech, Supervisor, QA/QC, Admin)
+- Comprehensive audit logging for all operations
+- NextAuth authentication with credential provider
+- Data integrity controls - no editing of approved runs
+- ISO 15189 compliance features
+
+## Technical Requirements
+
+### Technology Stack
+- **Frontend**: Next.js 14+ with App Router, TypeScript, TailwindCSS
+- **Backend**: Next.js API Routes with Node.js runtime
+- **Database**: Supabase PostgreSQL with Drizzle ORM
+- **Authentication**: NextAuth with JWT sessions
+- **Charts**: Recharts for Levey-Jennings visualization
+- **State Management**: TanStack Query v5 for server state
+- **Validation**: Zod for input validation
+- **Deployment**: Vercel with automated GitHub integration
+
+### Database Schema Key Tables
+- users, devices, tests, units, methods
+- qc_levels, qc_lots, qc_limits  
+- run_groups, qc_runs, violations
+- capa, audit_log, rule_profiles
+
+### Westgard Rules Engine
+- Within-Level Rules: 1-3s (fail), 1-2s (warn), 2-2s (fail), 4-1s (fail), 10x (fail), 7T (fail)
+- Across-Level Rules: R-4s (fail), 2of3-2s (fail)
+- Configurable rule profiles with scope-based activation
+- Real-time evaluation with historical data window (12 points)
+
+### Performance Requirements  
+- L-J chart rendering < 1 second for 1 year of data
+- QC run entry processing < 3 seconds
+- Multi-level run group entry < 60 seconds
+- Connection pooling for production scale
+
+### Localization
+- Primary interface in Vietnamese
+- Asia/Ho_Chi_Minh timezone
+- Decimal separator as "." (period)
+- Inter font family throughout application
+
+## UI/UX Guidelines
+- Header navigation bar layout (no sidebar)
+- TailwindCSS with rounded-2xl styling and shadow-md
+- Form validation with Zod schemas
+- Virtualized tables for >1k rows
+- Responsive design with mobile considerations (Could Have)
+
+## Success Metrics
+- 100% accuracy in Westgard rule evaluation against test cases
+- Reduced rejected run rates after CAPA implementation
+- 24-hour resolution time for warning-level violations
+- Quarterly reduction in R-4s violations
+- Complete audit trail for ISO 15189 compliance
+
+## Implementation Phases
+
+### Phase 1: Foundation
+- Project setup with Next.js, Supabase, and authentication
+- Master data management (devices, tests, units, methods)
+- Basic QC levels and lots management
+
+### Phase 2: Core QC Processing  
+- QC limits configuration with Mean/SD/CV calculations
+- Westgard rules engine implementation
+- Quick Entry form with auto-fill capabilities
+
+### Phase 3: Visualization & Charts
+- Levey-Jennings charts with Recharts
+- Interactive filtering and date range selection
+- Violation status visualization
+
+### Phase 4: CAPA & Reporting
+- CAPA workflow and approval system  
+- Dashboard with status indicators
+- Report generation and Excel export
+
+### Phase 5: Security & Compliance
+- Complete audit logging implementation
+- Role-based access control enforcement
+- Data integrity and backup procedures
+
+### Phase 6: Testing & Deployment
+- Comprehensive unit and integration testing
+- UAT with laboratory staff
+- Production deployment with monitoring
+
+## Acceptance Criteria
+- All Westgard rules evaluated with 100% accuracy
+- Performance targets met for chart rendering and data entry
+- Complete audit trail for all operations
+- Role-based access properly enforced
+- Data integrity maintained throughout system lifecycle
+- ISO 15189 compliance requirements satisfied
+
+## Future Enhancements (Won't Have in MVP)
+- Direct analyzer/LIS connectivity (HL7/ASTM)
+- Advanced analytics and machine learning
+- Multi-site real-time synchronization  
+- Mobile application development
+- Bilingual VI/EN interface support

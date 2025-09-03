@@ -77,7 +77,7 @@ export const GET = withAuth(
       }
 
       if (conditions.length > 0) {
-        query = query.where(and(...conditions))
+        query = query.where(and(...conditions)) as typeof query
       }
 
       const logs = await query
@@ -92,7 +92,7 @@ export const GET = withAuth(
         .leftJoin(users, eq(auditLog.actorId, users.id))
 
       if (conditions.length > 0) {
-        countQuery = countQuery.where(and(...conditions))
+        countQuery = countQuery.where(and(...conditions)) as typeof countQuery
       }
 
       const [{ count: totalCount }] = await countQuery
@@ -103,7 +103,7 @@ export const GET = withAuth(
           total: totalCount,
           limit: filters.limit,
           offset: filters.offset,
-          hasMore: filters.offset + filters.limit < totalCount,
+          hasMore: filters.offset + filters.limit < Number(totalCount),
         },
       })
     } catch (error) {

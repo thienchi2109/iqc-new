@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Brush } from 'recharts'
-import { Select } from '@/components/ui/Select'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 interface ChartDataPoint {
   date: string
@@ -34,36 +34,62 @@ export default function LjChart() {
   // Fetch master data (same as QuickEntry)
   const { data: devices } = useQuery({
     queryKey: ['devices'],
-    queryFn: () => fetch('/api/devices').then(res => res.json()),
+    queryFn: async () => {
+      const res = await fetch('/api/devices')
+      if (!res.ok) throw new Error('Failed to fetch devices')
+      const data = await res.json()
+      return Array.isArray(data) ? data : []
+    },
   })
 
   const { data: tests } = useQuery({
     queryKey: ['tests'],
-    queryFn: () => fetch('/api/tests').then(res => res.json()),
+    queryFn: async () => {
+      const res = await fetch('/api/tests')
+      if (!res.ok) throw new Error('Failed to fetch tests')
+      const data = await res.json()
+      return Array.isArray(data) ? data : []
+    },
   })
 
   const { data: qcLevels } = useQuery({
     queryKey: ['qc-levels', testId],
-    queryFn: () => fetch(`/api/qc/levels?testId=${testId}`).then(res => res.json()),
+    queryFn: async () => {
+      const res = await fetch(`/api/qc/levels?testId=${testId}`)
+      if (!res.ok) throw new Error('Failed to fetch QC levels')
+      const data = await res.json()
+      return Array.isArray(data) ? data : []
+    },
     enabled: !!testId,
   })
 
   const { data: qcLots } = useQuery({
     queryKey: ['qc-lots', levelId],
-    queryFn: () => fetch(`/api/qc/lots?levelId=${levelId}`).then(res => res.json()),
+    queryFn: async () => {
+      const res = await fetch(`/api/qc/lots?levelId=${levelId}`)
+      if (!res.ok) throw new Error('Failed to fetch QC lots')
+      const data = await res.json()
+      return Array.isArray(data) ? data : []
+    },
     enabled: !!levelId,
   })
 
   // Fetch QC limits
-  const { data: qcLimits } = useQuery<QcLimit>({
+  const { data: qcLimits } = useQuery<QcLimit | null>({
     queryKey: ['qc-limits', testId, levelId, lotId, deviceId],
-    queryFn: () => {
+    queryFn: async () => {
       const params = new URLSearchParams()
       if (testId) params.append('testId', testId)
       if (levelId) params.append('levelId', levelId)
       if (lotId) params.append('lotId', lotId)
       if (deviceId) params.append('deviceId', deviceId)
-      return fetch(`/api/qc/limits?${params}`).then(res => res.json()).then(data => data[0])
+      
+      const res = await fetch(`/api/qc/limits?${params}`)
+      if (!res.ok) {
+        throw new Error('Failed to fetch QC limits')
+      }
+      const data = await res.json()
+      return Array.isArray(data) && data.length > 0 ? data[0] : null
     },
     enabled: !!(testId && levelId && lotId && deviceId),
   })
@@ -81,16 +107,29 @@ export default function LjChart() {
       if (dateTo) params.append('to', dateTo)
       params.append('limit', '1000')
       
-      const runs = await fetch(`/api/qc/runs?${params}`).then(res => res.json())
+      const res = await fetch(`/api/qc/runs?${params}`)
+      if (!res.ok) {
+        throw new Error('Failed to fetch QC runs data')
+      }
+      const runs = await res.json()
+      
+      if (!Array.isArray(runs)) {
+        return []
+      }
       
       return runs.map((run: any) => ({
-        date: new Date(run.createdAt).toLocaleDateString(),
-        value: Number(run.value),
+        date: new Date(run.createdAt).toLocaleDateString('vi-VN', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          timeZone: 'Asia/Ho_Chi_Minh'
+        }),
+        value: Number(run.value) || 0,
         z: Number(run.z || 0),
-        status: run.status,
+        status: run.status || 'pending',
         violations: [], // TODO: Fetch violations
-        performer: run.performerId,
-        lotCode: run.lotId,
+        performer: run.performerId || '',
+        lotCode: run.lotId || '',
       }))
     },
     enabled: !!(deviceId && testId && levelId && lotId),
@@ -104,18 +143,18 @@ export default function LjChart() {
       const data = payload[0].payload as ChartDataPoint
       return (
         <div className="bg-white p-3 border border-gray-200 rounded-2xl shadow-md">
-          <p className="font-medium">{`Date: ${label}`}</p>
-          <p className="text-blue-600">{`Value: ${data.value}`}</p>
-          <p className="text-gray-600">{`Z-score: ${data.z.toFixed(2)}`}</p>
+          <p className="font-medium">{`Ngày: ${label}`}</p>
+          <p className="text-blue-600">{`Giá trị: ${data.value}`}</p>
+          <p className="text-gray-600">{`Z-score: ${data.z != null && !isNaN(Number(data.z)) ? Number(data.z).toFixed(2) : 'N/A'}`}</p>
           <p className={`font-medium ${
             data.status === 'accepted' ? 'text-green-600' :
             data.status === 'pending' ? 'text-yellow-600' : 'text-red-600'
           }`}>
-            Status: {data.status}
+            Trạng thái: {data.status}
           </p>
           {data.violations.length > 0 && (
             <p className="text-red-600 text-sm">
-              Violations: {data.violations.join(', ')}
+              Vi phạm: {data.violations.join(', ')}
             </p>
           )}
         </div>
@@ -147,23 +186,23 @@ export default function LjChart() {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Levey-Jennings Charts</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Biểu đồ Levey-Jennings</h1>
         <p className="text-gray-600 mt-1">
-          Interactive L-J charts with Westgard rule visualization
+          Biểu đồ L-J tương tác với hiển thị quy tắc Westgard
         </p>
       </div>
 
       {/* Filters */}
       <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Chart Filters</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Bộ lọc biểu đồ</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Device *
+              Thiết bị *
             </label>
             <Select value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
-              <option value="">Select Device</option>
+              <option value="">Chọn thiết bị</option>
               {devices?.map((device: any) => (
                 <option key={device.id} value={device.id}>
                   {device.code} - {device.name}
@@ -174,10 +213,10 @@ export default function LjChart() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Test *
+              Xét nghiệm *
             </label>
             <Select value={testId} onChange={(e) => setTestId(e.target.value)}>
-              <option value="">Select Test</option>
+              <option value="">Chọn xét nghiệm</option>
               {tests?.map((test: any) => (
                 <option key={test.id} value={test.id}>
                   {test.code} - {test.name}
@@ -188,10 +227,10 @@ export default function LjChart() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              QC Level *
+              Mức QC *
             </label>
             <Select value={levelId} onChange={(e) => setLevelId(e.target.value)} disabled={!testId}>
-              <option value="">Select Level</option>
+              <option value="">Chọn mức</option>
               {qcLevels?.map((level: any) => (
                 <option key={level.id} value={level.id}>
                   {level.level} - {level.material}
@@ -202,13 +241,13 @@ export default function LjChart() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              QC Lot *
+              Lô QC *
             </label>
             <Select value={lotId} onChange={(e) => setLotId(e.target.value)} disabled={!levelId}>
-              <option value="">Select Lot</option>
+              <option value="">Chọn lô</option>
               {qcLots?.map((lot: any) => (
                 <option key={lot.id} value={lot.id}>
-                  {lot.lotCode} (Exp: {lot.expireDate})
+                  {lot.lotCode} (HSD: {lot.expireDate})
                 </option>
               ))}
             </Select>
@@ -218,7 +257,7 @@ export default function LjChart() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              From Date
+              Từ ngày
             </label>
             <Input
               type="date"
@@ -228,7 +267,7 @@ export default function LjChart() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              To Date
+              Đến ngày
             </label>
             <Input
               type="date"
@@ -243,7 +282,7 @@ export default function LjChart() {
       <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold text-gray-900">
-            L-J Chart
+            Biểu đồ L-J
             {qcLimits && (
               <span className="text-sm font-normal text-gray-600 ml-2">
                 (Mean: {mean}, SD: ±{sd})
@@ -253,28 +292,28 @@ export default function LjChart() {
           <div className="flex space-x-4 text-sm">
             <div className="flex items-center space-x-1">
               <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <span>Accepted</span>
+              <span>Chấp nhận</span>
             </div>
             <div className="flex items-center space-x-1">
               <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-              <span>Warning</span>
+              <span>Cảnh báo</span>
             </div>
             <div className="flex items-center space-x-1">
               <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-              <span>Rejected</span>
+              <span>Từ chối</span>
             </div>
           </div>
         </div>
 
         {isLoading ? (
           <div className="h-96 flex items-center justify-center text-gray-500">
-            Loading chart data...
+            Đang tải dữ liệu biểu đồ...
           </div>
         ) : !chartData || chartData.length === 0 ? (
           <div className="h-96 flex items-center justify-center text-gray-500">
             {deviceId && testId && levelId && lotId 
-              ? 'No data found for the selected filters'
-              : 'Please select device, test, level, and lot to view chart'
+              ? 'Không tìm thấy dữ liệu cho các bộ lọc đã chọn'
+              : 'Vui lòng chọn thiết bị, xét nghiệm, mức và lô để xem biểu đồ'
             }
           </div>
         ) : (

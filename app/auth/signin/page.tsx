@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import Image from 'next/image'
+import { useState, useCallback } from 'react'
 import { signIn, getSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Input } from '@/components/ui/Input'
-import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 
 export default function SignIn() {
   const [username, setUsername] = useState('')
@@ -18,6 +19,8 @@ export default function SignIn() {
     setIsLoading(true)
     setError('')
 
+    console.log('Attempting to sign in with username:', username)
+
     try {
       const result = await signIn('credentials', {
         username,
@@ -25,17 +28,26 @@ export default function SignIn() {
         redirect: false,
       })
 
+      console.log('SignIn result:', result)
+
       if (result?.error) {
-        setError('Invalid credentials')
-      } else {
-        // Check if sign in was successful
+        console.error('SignIn error:', result.error)
+        setError('Tên đăng nhập hoặc mật khẩu không hợp lệ')
+      } else if (result?.ok) {
+        console.log('SignIn successful, checking session...')
         const session = await getSession()
+        console.log('Session after signin:', session)
         if (session) {
+          console.log('Session found, redirecting to dashboard')
           router.push('/dashboard')
+        } else {
+          console.error('No session found after successful signin')
+          setError('Đăng nhập thành công nhưng không thể tạo phiên. Vui lòng thử lại.')
         }
       }
     } catch (err) {
-      setError('An error occurred. Please try again.')
+      console.error('SignIn exception:', err)
+      setError('Đã có lỗi xảy ra. Vui lòng thử lại.')
     } finally {
       setIsLoading(false)
     }
@@ -43,21 +55,22 @@ export default function SignIn() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h1 className="text-center text-3xl font-bold text-gray-900">
-            C-Lab IQC Pro
-          </h1>
-          <h2 className="mt-6 text-center text-xl text-gray-600">
-            Sign in to your account
-          </h2>
+      <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-md border border-gray-200">
+        <div className="text-center mb-8">
+          <Image src="https://i.postimg.cc/CLD5SNvf/profit-1508216.png" alt="C-Lab IQC Pro Logo" width={80} height={80} className="mx-auto mb-4" />
+            <h1 className="text-3xl font-bold text-blue-600">
+                C-Lab IQC Pro
+            </h1>
+            <h2 className="mt-2 text-xl text-gray-600">
+                Đăng nhập vào tài khoản của bạn
+            </h2>
         </div>
         
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-                Username
+                Tên đăng nhập
               </label>
               <Input
                 id="username"
@@ -66,13 +79,13 @@ export default function SignIn() {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter your username"
+                placeholder="Nhập tên đăng nhập của bạn"
               />
             </div>
             
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Password
+                Mật khẩu
               </label>
               <Input
                 id="password"
@@ -81,7 +94,7 @@ export default function SignIn() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder="Nhập mật khẩu của bạn"
               />
             </div>
           </div>
@@ -97,20 +110,25 @@ export default function SignIn() {
             disabled={isLoading}
             className="w-full"
           >
-            {isLoading ? 'Signing in...' : 'Sign in'}
+            {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </Button>
         </form>
 
         <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
-          <h3 className="text-sm font-medium text-blue-800 mb-2">Demo Accounts</h3>
+          <h3 className="text-sm font-medium text-blue-800 mb-2">Tài khoản demo</h3>
           <div className="text-xs text-blue-600 space-y-1">
-            <div><strong>admin</strong> / password123 (Administrator)</div>
-            <div><strong>qaqc1</strong> / password123 (QA/QC Specialist)</div>
-            <div><strong>supervisor1</strong> / password123 (Lab Supervisor)</div>
-            <div><strong>tech1</strong> / password123 (Lab Technician)</div>
+            <div><strong>admin</strong> / password123 (Quản trị viên)</div>
+            <div><strong>qaqc1</strong> / password123 (Chuyên viên QA/QC)</div>
+            <div><strong>supervisor1</strong> / password123 (Giám sát viên)</div>
+            <div><strong>tech1</strong> / password123 (Kỹ thuật viên)</div>
           </div>
+        </div>
+
+        <div className="mt-8 text-center text-sm text-gray-500">
+          <p>Phát triển bởi Nguyễn Thiện Chí</p>
         </div>
       </div>
     </div>
   )
 }
+

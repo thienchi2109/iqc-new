@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withAuth } from '@/lib/auth/middleware'
 import { db } from '@/lib/db/client'
-import { qcRuns, qcLimits, violations, qcLots, runGroups } from '@/lib/db/schema'
+import { qcRuns, qcLimits, violations, qcLots, runGroups, devices, tests, qcLevels, units, methods, users } from '@/lib/db/schema'
 import { createQcRunSchema, qcRunFiltersSchema } from '@/lib/qc/validation'
 import { WestgardEngine } from '@/lib/qc/westgardEngine'
 import { eq, and, desc, sql, gte, lte } from 'drizzle-orm'
@@ -17,21 +17,40 @@ export const GET = withAuth(
         .select({
           id: qcRuns.id,
           groupId: qcRuns.groupId,
-          deviceId: qcRuns.deviceId,
-          testId: qcRuns.testId,
-          levelId: qcRuns.levelId,
-          lotId: qcRuns.lotId,
           value: qcRuns.value,
-          unitId: qcRuns.unitId,
-          methodId: qcRuns.methodId,
-          performerId: qcRuns.performerId,
           status: qcRuns.status,
           z: qcRuns.z,
           side: qcRuns.side,
           notes: qcRuns.notes,
           createdAt: qcRuns.createdAt,
+          // Raw IDs for filtering
+          deviceId: qcRuns.deviceId,
+          testId: qcRuns.testId,
+          levelId: qcRuns.levelId,
+          lotId: qcRuns.lotId,
+          unitId: qcRuns.unitId,
+          methodId: qcRuns.methodId,
+          performerId: qcRuns.performerId,
+          // Joined readable data
+          deviceCode: devices.code,
+          deviceName: devices.name,
+          testCode: tests.code,
+          testName: tests.name,
+          level: qcLevels.level,
+          levelMaterial: qcLevels.material,
+          lotCode: qcLots.lotCode,
+          unitDisplay: units.display,
+          methodName: methods.name,
+          performerName: users.name,
         })
         .from(qcRuns)
+        .leftJoin(devices, eq(qcRuns.deviceId, devices.id))
+        .leftJoin(tests, eq(qcRuns.testId, tests.id))
+        .leftJoin(qcLevels, eq(qcRuns.levelId, qcLevels.id))
+        .leftJoin(qcLots, eq(qcRuns.lotId, qcLots.id))
+        .leftJoin(units, eq(qcRuns.unitId, units.id))
+        .leftJoin(methods, eq(qcRuns.methodId, methods.id))
+        .leftJoin(users, eq(qcRuns.performerId, users.id))
 
       // Apply access control - techs can only see their own runs
       const conditions = []
@@ -50,7 +69,7 @@ export const GET = withAuth(
       if (filters.to) conditions.push(lte(qcRuns.createdAt, new Date(filters.to)))
 
       if (conditions.length > 0) {
-        query = query.where(and(...conditions))
+        query = query.where(and(...conditions)) as typeof query
       }
 
       const runs = await query
@@ -189,6 +208,7 @@ export const POST = withAuth(
           .insert(qcRuns)
           .values({
             ...runData,
+            value: runData.value.toString(),
             z: evaluation.z.toFixed(3),
             side: evaluation.side,
             status: evaluation.status,

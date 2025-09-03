@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     let query = db.select().from(qcLots)
     
     if (levelIds.length > 0) {
-      query = query.where(inArray(qcLots.levelId, levelIds))
+      query = query.where(inArray(qcLots.levelId, levelIds)) as typeof query
     }
 
     const lots = await query.orderBy(qcLots.expireDate)

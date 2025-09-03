@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import StatusCard from '@/components/StatusCard'
-import { Button } from '@/components/ui/Button'
+import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 
 interface QcRun {
@@ -14,6 +14,17 @@ interface QcRun {
   status: 'pending' | 'accepted' | 'rejected'
   z: number
   createdAt: string
+  // New joined fields
+  deviceCode: string
+  deviceName: string
+  testCode: string
+  testName: string
+  level: string
+  levelMaterial?: string
+  lotCode: string
+  unitDisplay?: string
+  methodName?: string
+  performerName?: string
 }
 
 async function fetchRecentRuns(): Promise<QcRun[]> {
@@ -55,17 +66,17 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Bảng điều khiển</h1>
           <p className="text-gray-600 mt-1">
-            Internal Quality Control Management Overview
+            Tổng quan quản lý nội kiểm chất lượng
           </p>
         </div>
         <div className="flex space-x-3">
           <Button asChild>
-            <Link href="/quick-entry">Quick Entry</Link>
+            <Link href="/quick-entry">Nhập nhanh</Link>
           </Button>
           <Button variant="outline" asChild>
-            <Link href="/lj-chart">View Charts</Link>
+            <Link href="/lj-chart">Xem biểu đồ</Link>
           </Button>
         </div>
       </div>
@@ -73,25 +84,25 @@ export default function Dashboard() {
       {/* Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatusCard
-          title="Accepted Runs"
+          title="Lần chạy được chấp nhận"
           count={stats?.accepted || 0}
           color="green"
           icon="✓"
         />
         <StatusCard
-          title="Warnings"
+          title="Cảnh báo"
           count={stats?.warnings || 0}
           color="yellow"
           icon="⚠"
         />
         <StatusCard
-          title="Rejected Runs"
+          title="Lần chạy bị từ chối"
           count={stats?.rejected || 0}
           color="red"
           icon="✗"
         />
         <StatusCard
-          title="Total Runs"
+          title="Tổng số lần chạy"
           count={stats?.total || 0}
           color="blue"
           icon="📊"
@@ -103,10 +114,10 @@ export default function Dashboard() {
         <div className="p-6 border-b border-gray-200">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold text-gray-900">
-              Recent QC Runs
+              Lần chạy QC gần đây
             </h2>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/lj-chart">View All</Link>
+              <Link href="/lj-chart">Xem tất cả</Link>
             </Button>
           </div>
         </div>
@@ -116,25 +127,25 @@ export default function Dashboard() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date/Time
+                  Ngày/Giờ
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Device
+                  Thiết bị
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Test
+                  Xét nghiệm
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Level
+                  Mức
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Value
+                  Giá trị
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Z-Score
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  Trạng thái
                 </th>
               </tr>
             </thead>
@@ -142,15 +153,15 @@ export default function Dashboard() {
               {runsLoading ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                    Loading recent runs...
+                    Đang tải các lần chạy gần đây...
                   </td>
                 </tr>
               ) : recentRuns?.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                    No QC runs found. 
+                    Không tìm thấy lần chạy QC nào.
                     <Link href="/quick-entry" className="text-blue-600 hover:underline ml-1">
-                      Create your first run
+                      Tạo lần chạy đầu tiên của bạn
                     </Link>
                   </td>
                 </tr>
@@ -158,22 +169,45 @@ export default function Dashboard() {
                 recentRuns?.map((run) => (
                   <tr key={run.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(run.createdAt).toLocaleString()}
+                      {new Date(run.createdAt).toLocaleDateString('vi-VN', {
+                        day: '2-digit',
+                        month: '2-digit', 
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        timeZone: 'Asia/Ho_Chi_Minh'
+                      })}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {run.deviceId}
+                      <div>
+                        <div className="font-medium">{run.deviceCode}</div>
+                        <div className="text-xs text-gray-500">{run.deviceName}</div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {run.testId}
+                      <div>
+                        <div className="font-medium">{run.testCode}</div>
+                        <div className="text-xs text-gray-500">{run.testName}</div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {run.levelId}
+                      <div>
+                        <div className="font-medium">{run.level}</div>
+                        {run.levelMaterial && (
+                          <div className="text-xs text-gray-500">{run.levelMaterial}</div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {run.value}
+                      <div>
+                        <div className="font-medium">{run.value}</div>
+                        {run.unitDisplay && (
+                          <div className="text-xs text-gray-500">{run.unitDisplay}</div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {run.z?.toFixed(2) || 'N/A'}
+                      {run.z != null && !isNaN(Number(run.z)) ? Number(run.z).toFixed(2) : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -185,7 +219,8 @@ export default function Dashboard() {
                             : 'bg-red-100 text-red-800'
                         }`}
                       >
-                        {run.status}
+                        {run.status === 'accepted' ? 'Chấp nhận' : 
+                         run.status === 'pending' ? 'Chờ duyệt' : 'Từ chối'}
                       </span>
                     </td>
                   </tr>
@@ -200,37 +235,37 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900 mb-3">
-            Quick Entry
+            Nhập nhanh
           </h3>
           <p className="text-gray-600 text-sm mb-4">
-            Enter QC data for up to 3 levels in one session
+            Nhập dữ liệu QC cho tối đa 3 mức trong một phiên
           </p>
           <Button asChild className="w-full">
-            <Link href="/quick-entry">Start Entry</Link>
+            <Link href="/quick-entry">Bắt đầu nhập</Link>
           </Button>
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900 mb-3">
-            Levey-Jennings Charts
+            Biểu đồ Levey-Jennings
           </h3>
           <p className="text-gray-600 text-sm mb-4">
-            View L-J charts with Westgard rule violations
+            Xem biểu đồ L-J với các vi phạm quy tắc Westgard
           </p>
           <Button asChild variant="outline" className="w-full">
-            <Link href="/lj-chart">View Charts</Link>
+            <Link href="/lj-chart">Xem biểu đồ</Link>
           </Button>
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900 mb-3">
-            Reports
+            Báo cáo
           </h3>
           <p className="text-gray-600 text-sm mb-4">
-            Generate summary reports and export data
+            Tạo báo cáo tóm tắt và xuất dữ liệu
           </p>
           <Button asChild variant="outline" className="w-full">
-            <Link href="/reports">View Reports</Link>
+            <Link href="/reports">Xem báo cáo</Link>
           </Button>
         </div>
       </div>

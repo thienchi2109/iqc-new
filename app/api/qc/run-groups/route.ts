@@ -67,11 +67,11 @@ export async function GET(request: NextRequest) {
           eq(runGroups.deviceId, deviceId),
           eq(runGroups.testId, testId)
         )
-      )
+      ) as typeof query
     } else if (deviceId) {
-      query = query.where(eq(runGroups.deviceId, deviceId))
+      query = query.where(eq(runGroups.deviceId, deviceId)) as typeof query
     } else if (testId) {
-      query = query.where(eq(runGroups.testId, testId))
+      query = query.where(eq(runGroups.testId, testId)) as typeof query
     }
 
     const groups = await query

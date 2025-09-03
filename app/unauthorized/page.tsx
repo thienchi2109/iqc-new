@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Button } from '@/components/ui/Button'
+import { Button } from '@/components/ui/button'
 
 export default function Unauthorized() {
   return (
@@ -11,7 +11,7 @@ export default function Unauthorized() {
             Access Denied
           </h2>
           <p className="mt-2 text-gray-600">
-            You don't have permission to access this page.
+            You don&apos;t have permission to access this page.
           </p>
           <p className="mt-1 text-sm text-gray-500">
             Please contact your administrator if you believe this is an error.

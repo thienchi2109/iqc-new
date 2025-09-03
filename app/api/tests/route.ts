@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     let query = db.select().from(tests)
     
     if (isActive !== null) {
-      query = query.where(eq(tests.isActive, isActive === 'true'))
+      query = query.where(eq(tests.isActive, isActive === 'true')) as typeof query
     }
 
     const allTests = await query.orderBy(tests.name)

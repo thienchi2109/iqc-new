@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Button } from '@/components/ui/Button'
-import { Select } from '@/components/ui/Select'
-import { Input } from '@/components/ui/Input'
+import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
 
 interface ReportData {
   device: string
@@ -90,30 +90,30 @@ export default function Reports() {
       params.append('groupBy', groupBy)
 
       // Mock Excel export - in real implementation, this would download a file
-      alert('Excel export functionality would be implemented here')
+      alert('Chức năng xuất Excel sẽ được triển khai ở đây')
     } catch (error) {
-      console.error('Export failed:', error)
-      alert('Export failed. Please try again.')
+      console.error('Xuất thất bại:', error)
+      alert('Xuất thất bại. Vui lòng thử lại.')
     }
   }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Báo cáo</h1>
         <p className="text-gray-600 mt-1">
-          Summary reports and violation statistics
+          Báo cáo tóm tắt và thống kê vi phạm
         </p>
       </div>
 
       {/* Filters */}
       <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Report Filters</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Bộ lọc báo cáo</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              From Date
+              Từ ngày
             </label>
             <Input
               type="date"
@@ -124,7 +124,7 @@ export default function Reports() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              To Date
+              Đến ngày
             </label>
             <Input
               type="date"
@@ -135,10 +135,10 @@ export default function Reports() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Device
+              Thiết bị
             </label>
             <Select value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
-              <option value="">All Devices</option>
+              <option value="">Tất cả thiết bị</option>
               {devices?.map((device: any) => (
                 <option key={device.id} value={device.id}>
                   {device.code} - {device.name}
@@ -149,10 +149,10 @@ export default function Reports() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Test
+              Xét nghiệm
             </label>
             <Select value={testId} onChange={(e) => setTestId(e.target.value)}>
-              <option value="">All Tests</option>
+              <option value="">Tất cả xét nghiệm</option>
               {tests?.map((test: any) => (
                 <option key={test.id} value={test.id}>
                   {test.code} - {test.name}
@@ -163,23 +163,23 @@ export default function Reports() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Group By
+              Nhóm theo
             </label>
             <Select value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
-              <option value="device">Device</option>
-              <option value="test">Test</option>
-              <option value="month">Month</option>
-              <option value="week">Week</option>
+              <option value="device">Thiết bị</option>
+              <option value="test">Xét nghiệm</option>
+              <option value="month">Tháng</option>
+              <option value="week">Tuần</option>
             </Select>
           </div>
         </div>
 
         <div className="mt-4 flex justify-end space-x-3">
           <Button variant="outline" onClick={handleExport}>
-            Export Excel
+            Xuất Excel
           </Button>
           <Button>
-            Generate Report
+            Tạo báo cáo
           </Button>
         </div>
       </div>
@@ -187,14 +187,14 @@ export default function Reports() {
       {/* Summary Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Runs</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Tổng số lần chạy</h3>
           <p className="text-3xl font-bold text-blue-600">
             {reportData?.reduce((sum, item) => sum + item.totalRuns, 0) || 0}
           </p>
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Acceptance Rate</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Tỷ lệ chấp nhận</h3>
           <p className="text-3xl font-bold text-green-600">
             {reportData && reportData.length > 0 
               ? (reportData.reduce((sum, item) => sum + item.acceptanceRate, 0) / reportData.length).toFixed(1)
@@ -204,7 +204,7 @@ export default function Reports() {
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Warning Rate</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Tỷ lệ cảnh báo</h3>
           <p className="text-3xl font-bold text-yellow-600">
             {reportData && reportData.length > 0 
               ? (reportData.reduce((sum, item) => sum + (item.warningRuns / item.totalRuns * 100), 0) / reportData.length).toFixed(1)
@@ -214,7 +214,7 @@ export default function Reports() {
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Rejection Rate</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Tỷ lệ từ chối</h3>
           <p className="text-3xl font-bold text-red-600">
             {reportData && reportData.length > 0 
               ? (reportData.reduce((sum, item) => sum + item.rejectionRate, 0) / reportData.length).toFixed(1)
@@ -228,7 +228,7 @@ export default function Reports() {
       <div className="bg-white rounded-2xl shadow-md border border-gray-200">
         <div className="p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">
-            QC Performance Summary
+            Tóm tắt hiệu suất QC
           </h2>
         </div>
         
@@ -237,31 +237,31 @@ export default function Reports() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Device
+                  Thiết bị
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Test
+                  Xét nghiệm
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Level
+                  Mức
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total Runs
+                  Tổng số lần chạy
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Accepted
+                  Chấp nhận
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Warnings
+                  Cảnh báo
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Rejected
+                  Từ chối
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Acceptance Rate
+                  Tỷ lệ chấp nhận
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Rejection Rate
+                  Tỷ lệ từ chối
                 </th>
               </tr>
             </thead>
@@ -269,13 +269,13 @@ export default function Reports() {
               {isLoading ? (
                 <tr>
                   <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
-                    Loading report data...
+                    Đang tải dữ liệu báo cáo...
                   </td>
                 </tr>
               ) : reportData?.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
-                    No data available for the selected criteria
+                    Không có dữ liệu cho các tiêu chí đã chọn
                   </td>
                 </tr>
               ) : (
