@@ -36,10 +36,12 @@ Mục tiêu của C‑Lab IQC Pro:
 - Giao diện **nhập dữ liệu QC** theo run: *ngày/giờ, máy, test, mức, ****lô (theo mức)****, ****hạn dùng (Expire Date)****, ****phương pháp xét nghiệm****, ****đơn vị tính**** (enum, auto‑fill theo **test × máy**), ****giá trị đo****, ****người thực hiện****, ghi chú*.
 - **Tự động tính**: Z‑score, vị trí so với Mean, mốc ±1/2/3SD.
 - **Biểu đồ Levey–Jennings** theo *test × máy × mức × lô* với các đường Mean, ±1SD, ±2SD, ±3SD; tua theo ngày.
-- **Bộ máy Westgard** (1‑3s, 1‑2s [cảnh báo], 2‑2s, R‑4s, 4‑1s, 10x; tuỳ chọn 7T/8x/12x) áp dụng ngay khi nhập; hiển thị **màu**: xanh/vàng/đỏ.
-- **Chấp nhận/Loại run** theo kết quả quy tắc; bắt buộc nhập **CAPA** (nguyên nhân/khắc phục) khi bị loại; lưu **violation log**.
+- **Bộ máy Westgard** (1‑3s, 1‑2s [cảnh báo], 2‑2s, R‑4s, 4‑1s, 10x; tuỳ chọn 7T/8x/12x) áp dụng ngay khi nhập; hiển thị **màu**: xanh/vàng/đỏ theo kết quả tự động.
+- **Quy trình duyệt QC**: Tất cả QC run tạo ra ở trạng thái "chờ duyệt"; chỉ Trưởng khoa/QLCL/Admin mới có thể duyệt/từ chối.
+- **Chấp nhận/Loại run sau duyệt**: Run được duyệt mới được tính là "valid QC" cho lịch sử; run chờ duyệt/từ chối không được tính.
+- **CAPA bắt buộc**: Run auto\_result="fail" chỉ được duyệt nếu có CAPA đã duyệt hoặc có run tiếp theo PASS.
 - **Báo cáo**: tỷ lệ vi phạm theo *máy/test/tháng*; nhật ký CAPA; xuất **Excel**.
-- **Phân quyền**: KTV (nhập), Trưởng khoa (duyệt/loại run), QLCL (báo cáo), Admin (cấu hình). Có **audit log**.
+- **Phân quyền**: KTV (nhập), Trưởng khoa/QLCL/Admin (duyệt QC), QLCL (báo cáo), Admin (cấu hình). Có **audit log đầy đủ**.
 - **Ngôn ngữ giao diện**: mặc định **Tiếng Việt**; định dạng thời gian **Asia/Ho\_Chi\_Minh**; **dấu thập phân là dấu "."**.
 
 
@@ -134,8 +136,8 @@ SUP --> APP
 - **qc\_limits**: `id, test_id, level_id, lot_id, device_id, mean, sd, cv, source enum('manufacturer','lab'), created_by`.
   - **Unique** `(test_id, level_id, lot_id, device_id)`.
 - **run\_groups**: `id, device_id, test_id, run_at timestamptz, created_by` *(gom các mức đo cùng giờ)*.
-- **qc\_runs**: `id, group_id FK?, device_id, test_id, level_id, lot_id, value, unit_id, method_id, performer_id, status enum('pending','accepted','rejected'), z, side enum('above','below','on'), notes, created_at`.
-  - **Index** `(test_id, device_id, level_id, lot_id, created_at)`.
+- **qc\_runs**: `id, group_id FK?, device_id, test_id, level_id, lot_id, value, unit_id, method_id, performer_id, status enum('pending','accepted','rejected'), auto_result enum('pass','warn','fail'), approval_state enum('pending','approved','rejected') DEFAULT 'pending', approved_by FK users(id), approved_at timestamptz, approval_note text, z, side enum('above','below','on'), notes, created_at`.
+  - **Index** `(test_id, device_id, level_id, lot_id, created_at)`, `(approval_state, created_at)`, `(auto_result, created_at)`.
 - **violations**: `id, run_id, rule_code, severity enum('warn','fail'), window_size, details JSONB, created_at`.
   - **Index** `(run_id, rule_code)`.
 - **capa**: `id, run_id, root_cause, action, approver_id, status enum('draft','submitted','approved','rejected'), created_at`.
@@ -194,9 +196,10 @@ const status = vios.some(v => v.severity==='fail') ? 'rejected' : 'accepted';
 
 **Hiển thị trên L‑J (Recharts)**
 
-- Trục Y: giá trị; vẽ các dải ±1/2/3SD; chấm dữ liệu tô **xanh/vàng/đỏ** theo `status`.
-- Tooltip: `value`, `z`, `rule` vi phạm, `performer`, `lot`, `expire`.
-- Lọc: *device/test/level/lot/date range*; tuỳ chọn overlay 3 mức (Should‑have).
+- Trục Y: giá trị; vẽ các dải ±1/2/3SD; chấm dữ liệu tô **xanh/vàng/đỏ** theo `auto_result`.
+- **Dot style**: rỗng (hollow) cho `approval_state='pending'`, đặc (solid) cho đã duyệt/từ chối.
+- Tooltip: `value`, `z`, `auto_result`, `approval_state`, `rule` vi phạm, `performer`, `lot`, `expire`.
+- Lọc: *device/test/level/lot/date range* + `approval_state`/`auto_result`; tuỳ chọn overlay 3 mức (Should‑have).
 
 ---
 
@@ -238,8 +241,10 @@ const status = vios.some(v => v.severity==='fail') ? 'rejected' : 'accepted';
 - `POST /api/qc/limits` – tạo/ cập nhật Mean/SD/%CV theo *test×level×lot×device*.
 - `POST /api/qc/lots` – tạo lot (level‑scoped) + `expire_date`.
 - `POST /api/qc/run-groups` – tạo nhóm giờ cho phiên đo.
-- `POST /api/qc/runs` – nhập run: tính `z`, kiểm **Westgard**, trả `status`+`violations`; nếu `rejected` → yêu cầu tạo **CAPA**.
-- `GET /api/qc/runs` – lọc theo *device/test/level/lot/date range* (phục vụ bảng & chart).
+- `POST /api/qc/runs` – nhập run: tính `z`, kiểm **Westgard**, trả `auto_result`+`violations`; tất cả run tạo ra ở `approval_state='pending'`.
+- `GET /api/qc/runs` – lọc theo *device/test/level/lot/date range* + `approval_state`/`auto_result` (phục vụ bảng & chart).
+- `POST /api/qc/runs/:id/approve` – duyệt QC run (chỉ supervisor/qaqc/admin); kiểm tra business rule cho `auto_result='fail'`.
+- `POST /api/qc/runs/:id/reject` – từ chối QC run với lý do bắt buộc (chỉ supervisor/qaqc/admin).
 - `POST /api/qc/capa` – tạo/duyệt CAPA.
 - `GET /api/qc/violations` – liệt kê vi phạm theo filter.
 - `GET /api/reports/summary` – tỷ lệ vi phạm theo máy/test/tháng; **Excel**: `GET /api/export/excel`.

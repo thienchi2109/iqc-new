@@ -22,7 +22,15 @@ export const GET = withAuth(
           z: qcRuns.z,
           side: qcRuns.side,
           notes: qcRuns.notes,
+          // Add approval workflow fields
+          autoResult: qcRuns.autoResult,
+          approvalState: qcRuns.approvalState,
+          approvedBy: qcRuns.approvedBy,
+          approvedAt: qcRuns.approvedAt,
+          approvalNote: qcRuns.approvalNote,
+          // UTC timestamps
           createdAt: qcRuns.createdAt,
+          runAt: sql<string>`to_char(${qcRuns.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`.as('run_at_utc'),
           // Raw IDs for filtering
           deviceId: qcRuns.deviceId,
           testId: qcRuns.testId,
@@ -39,9 +47,13 @@ export const GET = withAuth(
           level: qcLevels.level,
           levelMaterial: qcLevels.material,
           lotCode: qcLots.lotCode,
+          lotExpireDate: qcLots.expireDate,
           unitDisplay: units.display,
           methodName: methods.name,
           performerName: users.name,
+          // Approver information
+          approverName: sql<string>`approver.name`.as('approver_name'),
+          approverUsername: sql<string>`approver.username`.as('approver_username'),
         })
         .from(qcRuns)
         .leftJoin(devices, eq(qcRuns.deviceId, devices.id))
@@ -51,6 +63,7 @@ export const GET = withAuth(
         .leftJoin(units, eq(qcRuns.unitId, units.id))
         .leftJoin(methods, eq(qcRuns.methodId, methods.id))
         .leftJoin(users, eq(qcRuns.performerId, users.id))
+        .leftJoin(sql.raw('users as approver'), eq(qcRuns.approvedBy, sql.raw('approver.id')))
 
       // Apply access control - techs can only see their own runs
       const conditions = []
@@ -67,6 +80,9 @@ export const GET = withAuth(
       if (filters.performerId) conditions.push(eq(qcRuns.performerId, filters.performerId))
       if (filters.from) conditions.push(gte(qcRuns.createdAt, new Date(filters.from)))
       if (filters.to) conditions.push(lte(qcRuns.createdAt, new Date(filters.to)))
+      // Add approval workflow filters
+      if (filters.approvalState) conditions.push(eq(qcRuns.approvalState, filters.approvalState))
+      if (filters.autoResult) conditions.push(eq(qcRuns.autoResult, filters.autoResult))
 
       if (conditions.length > 0) {
         query = query.where(and(...conditions)) as typeof query
@@ -212,6 +228,8 @@ export const POST = withAuth(
             z: evaluation.z.toFixed(3),
             side: evaluation.side,
             status: evaluation.status,
+            autoResult: evaluation.autoResult,
+            // approvalState defaults to 'pending' in schema
             createdAt: new Date(),
           })
           .returning()
@@ -235,6 +253,7 @@ export const POST = withAuth(
             z: evaluation.z,
             side: evaluation.side,
             status: evaluation.status,
+            autoResult: evaluation.autoResult,
             violations: evaluation.violations,
           },
         }

@@ -111,9 +111,17 @@ export const qcRuns = pgTable('qc_runs', {
   side: text('side').$type<'above' | 'below' | 'on'>(),
   notes: text('notes'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  // Approval workflow columns
+  autoResult: text('auto_result').$type<'pass' | 'warn' | 'fail'>(),
+  approvalState: text('approval_state').$type<'pending' | 'approved' | 'rejected'>().notNull().default('pending'),
+  approvedBy: uuid('approved_by').references(() => users.id),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  approvalNote: text('approval_note'),
 }, (table) => ({
   runsByFiltersIdx: index('qc_runs_filters_idx').on(table.testId, table.deviceId, table.levelId, table.lotId, table.createdAt),
   runsByStatusIdx: index('qc_runs_status_idx').on(table.status, table.createdAt),
+  runsByApprovalIdx: index('qc_runs_approval_idx').on(table.approvalState, table.createdAt),
+  runsByAutoResultIdx: index('qc_runs_auto_result_idx').on(table.autoResult, table.createdAt),
 }))
 
 // Westgard Rule Violations
@@ -294,6 +302,10 @@ export const qcRunsRelations = relations(qcRuns, ({ many, one }) => ({
   }),
   performer: one(users, {
     fields: [qcRuns.performerId],
+    references: [users.id],
+  }),
+  approver: one(users, {
+    fields: [qcRuns.approvedBy],
     references: [users.id],
   }),
   violations: many(violations),

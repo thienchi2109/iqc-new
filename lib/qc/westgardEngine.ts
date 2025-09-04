@@ -26,6 +26,7 @@ export interface EvaluationResult {
   z: number
   side: 'above' | 'below' | 'on'
   status: 'accepted' | 'rejected' | 'pending'
+  autoResult: 'pass' | 'warn' | 'fail'
   violations: Violation[]
 }
 
@@ -333,23 +334,43 @@ export class WestgardEngine {
     // Combine all violations
     const allViolations = [...withinLevelViolations, ...acrossLevelViolations]
 
-    // Determine status based on violations
+    // Determine auto_result based on violations (for approval workflow)
     const hasFail = allViolations.some(v => v.severity === 'fail')
     const hasWarn = allViolations.some(v => v.severity === 'warn')
     
-    let status: 'accepted' | 'rejected' | 'pending'
+    let autoResult: 'pass' | 'warn' | 'fail'
     if (hasFail) {
-      status = 'rejected'
+      autoResult = 'fail'
     } else if (hasWarn) {
-      status = 'pending' // Requires review
+      autoResult = 'warn'
     } else {
-      status = 'accepted'
+      autoResult = 'pass'
+    }
+
+    // Determine legacy status (for backwards compatibility)
+    // With approval workflow, this will be overridden by approval_state
+    let status: 'accepted' | 'rejected' | 'pending'
+    const useApprovalGate = process.env.USE_APPROVAL_GATE !== 'false'
+    
+    if (useApprovalGate) {
+      // With approval gate, all runs start as pending regardless of auto_result
+      status = 'pending'
+    } else {
+      // Legacy behavior: auto-approve/reject based on violations
+      if (hasFail) {
+        status = 'rejected'
+      } else if (hasWarn) {
+        status = 'pending' // Requires review
+      } else {
+        status = 'accepted'
+      }
     }
 
     return {
       z,
       side,
       status,
+      autoResult,
       violations: allViolations
     }
   }
@@ -497,23 +518,41 @@ export class WestgardEngine {
     // Combine all violations
     const allViolations = [...withinLevelViolations, ...acrossLevelViolations]
 
-    // Determine status based on violations
+    // Determine auto_result and status based on violations
     const hasFail = allViolations.some(v => v.severity === 'fail')
     const hasWarn = allViolations.some(v => v.severity === 'warn')
     
-    let status: 'accepted' | 'rejected' | 'pending'
+    let autoResult: 'pass' | 'warn' | 'fail'
     if (hasFail) {
-      status = 'rejected'
+      autoResult = 'fail'
     } else if (hasWarn) {
-      status = 'pending' // Requires review
+      autoResult = 'warn'
     } else {
-      status = 'accepted'
+      autoResult = 'pass'
+    }
+
+    let status: 'accepted' | 'rejected' | 'pending'
+    const useApprovalGate = process.env.USE_APPROVAL_GATE !== 'false'
+    
+    if (useApprovalGate) {
+      // With approval gate, all runs start as pending regardless of auto_result
+      status = 'pending'
+    } else {
+      // Legacy behavior: auto-approve/reject based on violations
+      if (hasFail) {
+        status = 'rejected'
+      } else if (hasWarn) {
+        status = 'pending' // Requires review
+      } else {
+        status = 'accepted'
+      }
     }
 
     return {
       z,
       side,
       status,
+      autoResult,
       violations: allViolations
     }
   }

@@ -4,10 +4,11 @@ import { db } from '@/lib/db/client'
 import { ruleProfiles, ruleProfileBindings, tests, devices } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
+import { ruleScopeSchema } from '@/lib/qc/validation'
 
 // Validation schema for creating bindings
 const createBindingSchema = z.object({
-  scopeType: z.enum(['global', 'test', 'device', 'device_test']),
+  scopeType: ruleScopeSchema,
   testId: z.string().uuid().optional(),
   deviceId: z.string().uuid().optional(),
   activeFrom: z.string().datetime().optional(),
@@ -15,10 +16,10 @@ const createBindingSchema = z.object({
 }).refine((data) => {
   // Validate that required IDs are provided based on scope type
   if (data.scopeType === 'test' || data.scopeType === 'device_test') {
-    return !!data.testId
+    if (!data.testId) return false
   }
   if (data.scopeType === 'device' || data.scopeType === 'device_test') {
-    return !!data.deviceId
+    if (!data.deviceId) return false
   }
   return true
 }, {

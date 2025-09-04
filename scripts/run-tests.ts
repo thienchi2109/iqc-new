@@ -60,9 +60,9 @@ function runTests(options: TestOptions = {}) {
   // Environment setup
   const env = {
     ...process.env,
-    NODE_ENV: 'test',
+    NODE_ENV: 'test' as const,
     USE_WESTGARD_RULE_PROFILES: 'true', // Enable feature for testing
-  };
+  } as NodeJS.ProcessEnv;
 
   console.log(`📋 Command: ${command}`);
   

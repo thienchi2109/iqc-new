@@ -168,7 +168,7 @@ export const createAuditLogSchema = z.object({
 })
 
 // Rule Profile validation schemas
-export const ruleScopeSchema = z.enum(['global', 'test', 'device'])
+export const ruleScopeSchema = z.enum(['global', 'test', 'device', 'device_test'])
 
 export const createRuleProfileSchema = z.object({
   name: z.string().min(1).max(100),
@@ -198,6 +198,9 @@ export const qcRunFiltersSchema = z.object({
   lotId: uuidSchema.optional(),
   status: qcRunStatusSchema.optional(),
   performerId: uuidSchema.optional(),
+  // Add approval workflow filters
+  approvalState: z.enum(['pending', 'approved', 'rejected']).optional(),
+  autoResult: z.enum(['pass', 'warn', 'fail']).optional(),
 }).merge(dateRangeSchema).merge(paginationSchema)
 
 // Quick Entry form validation

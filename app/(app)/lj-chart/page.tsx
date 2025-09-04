@@ -11,9 +11,14 @@ interface ChartDataPoint {
   value: number
   z: number
   status: 'accepted' | 'pending' | 'rejected'
+  autoResult: 'pass' | 'warn' | 'fail'
+  approvalState: 'pending' | 'approved' | 'rejected'
   violations: string[]
   performer: string
+  performerName: string
   lotCode: string
+  lotExpireDate: string
+  runAtUtc: string
 }
 
 interface QcLimit {
@@ -117,18 +122,25 @@ export default function LjChart() {
       }
       
       return runs.map((run: any) => ({
-        date: new Date(run.createdAt).toLocaleDateString('vi-VN', {
+        date: new Date(run.runAt || run.createdAt).toLocaleDateString('vi-VN', {
           day: '2-digit',
           month: '2-digit',
           year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
           timeZone: 'Asia/Ho_Chi_Minh'
         }),
         value: Number(run.value) || 0,
         z: Number(run.z || 0),
         status: run.status || 'pending',
+        autoResult: run.autoResult || 'pass',
+        approvalState: run.approvalState || 'pending',
         violations: [], // TODO: Fetch violations
         performer: run.performerId || '',
-        lotCode: run.lotId || '',
+        performerName: run.performerName || 'Unknown',
+        lotCode: run.lotCode || 'Unknown',
+        lotExpireDate: run.lotExpireDate || '',
+        runAtUtc: run.runAt || run.createdAt || '',
       }))
     },
     enabled: !!(deviceId && testId && levelId && lotId),
@@ -140,19 +152,38 @@ export default function LjChart() {
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload as ChartDataPoint
+      const autoResultColors = {
+        pass: 'text-green-600',
+        warn: 'text-yellow-600', 
+        fail: 'text-red-600'
+      }
+      const approvalStateColors = {
+        pending: 'text-orange-600',
+        approved: 'text-green-600',
+        rejected: 'text-red-600'
+      }
+      
       return (
-        <div className="bg-white p-3 border border-gray-200 rounded-2xl shadow-md">
-          <p className="font-medium">{`Ngày: ${label}`}</p>
+        <div className="bg-white p-3 border border-gray-200 rounded-2xl shadow-md max-w-sm">
+          <p className="font-medium">{`Thời gian: ${label}`}</p>
           <p className="text-blue-600">{`Giá trị: ${data.value}`}</p>
           <p className="text-gray-600">{`Z-score: ${data.z != null && !isNaN(Number(data.z)) ? Number(data.z).toFixed(2) : 'N/A'}`}</p>
-          <p className={`font-medium ${
-            data.status === 'accepted' ? 'text-green-600' :
-            data.status === 'pending' ? 'text-yellow-600' : 'text-red-600'
-          }`}>
-            Trạng thái: {data.status}
-          </p>
+          
+          <div className="flex justify-between mt-2">
+            <p className={`text-sm ${autoResultColors[data.autoResult]}`}>
+              Kết quả: {data.autoResult.toUpperCase()}
+            </p>
+            <p className={`text-sm ${approvalStateColors[data.approvalState]}`}>
+              Duyệt: {data.approvalState === 'pending' ? 'Chờ' : 
+                      data.approvalState === 'approved' ? 'Đã duyệt' : 'Từ chối'}
+            </p>
+          </div>
+          
+          <p className="text-sm text-gray-500 mt-1">Thực hiện: {data.performerName}</p>
+          <p className="text-sm text-gray-500">Lô: {data.lotCode}</p>
+          
           {data.violations.length > 0 && (
-            <p className="text-red-600 text-sm">
+            <p className="text-red-600 text-sm mt-1">
               Vi phạm: {data.violations.join(', ')}
             </p>
           )}
@@ -164,20 +195,30 @@ export default function LjChart() {
 
   const CustomDot = (props: any) => {
     const { cx, cy, payload } = props
-    const colors = {
-      accepted: '#10b981', // green
-      pending: '#f59e0b',  // yellow
-      rejected: '#ef4444', // red
+    
+    // Colors based on auto_result
+    const autoResultColors = {
+      pass: '#10b981', // green
+      warn: '#f59e0b',  // yellow
+      fail: '#ef4444',  // red
     }
+    
+    // Hollow vs solid based on approval_state
+    const isApproved = payload.approvalState === 'approved'
+    const isRejected = payload.approvalState === 'rejected'
+    const isPending = payload.approvalState === 'pending'
+    
+    const color = autoResultColors[payload.autoResult as keyof typeof autoResultColors] || '#6b7280'
     
     return (
       <circle
         cx={cx}
         cy={cy}
-        r={4}
-        fill={colors[payload.status as keyof typeof colors] || '#6b7280'}
-        stroke="white"
-        strokeWidth={1}
+        r={5}
+        fill={isPending ? 'white' : color} // Hollow for pending, solid for approved/rejected
+        stroke={color}
+        strokeWidth={isPending ? 2 : 1}
+        opacity={isRejected ? 0.6 : 1} // Slightly transparent if rejected
       />
     )
   }
@@ -268,18 +309,43 @@ export default function LjChart() {
               </span>
             )}
           </h2>
-          <div className="flex space-x-4 text-sm">
-            <div className="flex items-center space-x-1">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <span>Chấp nhận</span>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            {/* Auto Result Colors */}
+            <div>
+              <p className="font-medium text-gray-700 mb-2">Kết quả tự động:</p>
+              <div className="space-y-1">
+                <div className="flex items-center space-x-1">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span>PASS</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                  <span>WARN</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  <span>FAIL</span>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center space-x-1">
-              <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-              <span>Cảnh báo</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-              <span>Từ chối</span>
+            
+            {/* Approval State Symbols */}
+            <div>
+              <p className="font-medium text-gray-700 mb-2">Trạng thái duyệt:</p>
+              <div className="space-y-1">
+                <div className="flex items-center space-x-1">
+                  <div className="w-3 h-3 bg-white border-2 border-gray-400 rounded-full"></div>
+                  <span>Chờ duyệt</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span>Đã duyệt</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <div className="w-3 h-3 bg-red-500 opacity-60 rounded-full"></div>
+                  <span>Từ chối</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
