@@ -1,3 +1,5 @@
+import { resolveProfile, type RulesConfig } from './resolveProfile'
+
 export interface QcRunData {
   id: string
   value: number
@@ -25,6 +27,16 @@ export interface EvaluationResult {
   side: 'above' | 'below' | 'on'
   status: 'accepted' | 'rejected' | 'pending'
   violations: Violation[]
+}
+
+export interface EvaluateRunInput {
+  deviceId: string
+  testId: string
+  runAt: Date
+  value: number
+  limits: QcLimit
+  historicalData: QcRunData[]
+  peerRuns?: Record<string, { z: number; levelId: string }>
 }
 
 export class WestgardEngine {
@@ -119,7 +131,231 @@ export class WestgardEngine {
   }
 
   /**
-   * Evaluate within-level Westgard rules for a single QC level
+   * Evaluate within-level Westgard rules with configurable rules
+   */
+  static evaluateWithinLevelRulesConfigurable(
+    currentZ: number,
+    historicalData: QcRunData[],
+    config: RulesConfig
+  ): Violation[] {
+    const violations: Violation[] = []
+    const allZ = [currentZ, ...historicalData.map(run => run.z)]
+
+    // 1-3s rule: Single point beyond ±3SD
+    const rule13s = config.rules['1-3s']
+    if (rule13s?.enabled && Math.abs(currentZ) > 3) {
+      violations.push({
+        ruleCode: '1-3s',
+        severity: rule13s.severity || 'fail',
+        details: { z: currentZ, threshold: 3 }
+      })
+    }
+
+    // 1-2s rule: Single point beyond ±2SD
+    const rule12s = config.rules['1-2s']
+    if (rule12s?.enabled && Math.abs(currentZ) > 2) {
+      violations.push({
+        ruleCode: '1-2s',
+        severity: rule12s.severity || 'warn',
+        details: { z: currentZ, threshold: 2 }
+      })
+    }
+
+    // 2-2s rule: Two consecutive points beyond same ±2SD
+    const rule22s = config.rules['2-2s']
+    if (rule22s?.enabled && WestgardEngine.nConsecutiveBeyondSD(allZ, 2, 2)) {
+      violations.push({
+        ruleCode: '2-2s',
+        severity: rule22s.severity || 'fail',
+        windowSize: 2,
+        details: { sequence: allZ.slice(0, 2) }
+      })
+    }
+
+    // 4-1s rule: Four consecutive points beyond same ±1SD
+    const rule41s = config.rules['4-1s']
+    if (rule41s?.enabled) {
+      const threshold = rule41s.threshold_sd || 1
+      const window = rule41s.window || 4
+      if (WestgardEngine.nConsecutiveBeyondSD(allZ, window, threshold)) {
+        violations.push({
+          ruleCode: '4-1s',
+          severity: rule41s.severity || 'fail',
+          windowSize: window,
+          details: { sequence: allZ.slice(0, window), threshold }
+        })
+      }
+    }
+
+    // 3-1s rule: Three consecutive points beyond same ±1SD (optional)
+    const rule31s = config.rules['3-1s']
+    if (rule31s?.enabled) {
+      const threshold = rule31s.threshold_sd || 1
+      const window = rule31s.window || 3
+      if (WestgardEngine.nConsecutiveBeyondSD(allZ, window, threshold)) {
+        violations.push({
+          ruleCode: '3-1s',
+          severity: rule31s.severity || 'fail',
+          windowSize: window,
+          details: { sequence: allZ.slice(0, window), threshold }
+        })
+      }
+    }
+
+    // 10x rule: Ten consecutive points on same side of mean
+    const rule10x = config.rules['10x']
+    if (rule10x?.enabled) {
+      const count = rule10x.n || 10
+      if (WestgardEngine.consecutiveOneSide(allZ, count)) {
+        violations.push({
+          ruleCode: '10x',
+          severity: rule10x.severity || 'fail',
+          windowSize: count,
+          details: { sequence: allZ.slice(0, count) }
+        })
+      }
+    }
+
+    // 6x rule: Six consecutive points on same side (optional)
+    const rule6x = config.rules['6x']
+    if (rule6x?.enabled) {
+      const count = rule6x.n || 6
+      if (WestgardEngine.consecutiveOneSide(allZ, count)) {
+        violations.push({
+          ruleCode: '6x',
+          severity: rule6x.severity || 'fail',
+          windowSize: count,
+          details: { sequence: allZ.slice(0, count) }
+        })
+      }
+    }
+
+    // 7T rule: Seven consecutive points with trend
+    const rule7T = config.rules['7T']
+    if (rule7T?.enabled) {
+      const count = rule7T.n || 7
+      if (WestgardEngine.hasTrend(allZ, count)) {
+        violations.push({
+          ruleCode: '7T',
+          severity: rule7T.severity || 'fail',
+          windowSize: count,
+          details: { sequence: allZ.slice(0, count) }
+        })
+      }
+    }
+
+    return violations
+  }
+
+  /**
+   * Evaluate across-level rules with configurable rules
+   */
+  static evaluateAcrossLevelRulesConfigurable(
+    currentRunsByLevel: Record<string, { z: number; levelId: string }>,
+    config: RulesConfig
+  ): Violation[] {
+    const violations: Violation[] = []
+    const runs = Object.values(currentRunsByLevel)
+    
+    if (runs.length < 2) return violations
+
+    // R-4s rule: Range between levels exceeds configurable SD
+    const ruleR4s = config.rules['R-4s']
+    if (ruleR4s?.enabled) {
+      const threshold = ruleR4s.delta_sd || 4
+      const zValues = runs.map(run => run.z)
+      const range = Math.max(...zValues) - Math.min(...zValues)
+      
+      if (range > threshold) {
+        violations.push({
+          ruleCode: 'R-4s',
+          severity: ruleR4s.severity || 'fail',
+          details: { 
+            range, 
+            threshold,
+            levels: runs.map(r => r.levelId),
+            zValues 
+          }
+        })
+      }
+    }
+
+    // 2of3-2s rule: Two of three levels beyond ±2SD
+    const rule2of3 = config.rules['2of3-2s']
+    if (rule2of3?.enabled && runs.length >= 3) {
+      const threshold = rule2of3.threshold_sd || 2
+      const zValues = runs.map(run => run.z)
+      const beyondThreshold = zValues.filter(z => Math.abs(z) > threshold).length
+      if (beyondThreshold >= 2) {
+        violations.push({
+          ruleCode: '2of3-2s',
+          severity: rule2of3.severity || 'fail',
+          details: {
+            count: beyondThreshold,
+            threshold,
+            levels: runs.map(r => r.levelId),
+            zValues
+          }
+        })
+      }
+    }
+
+    return violations
+  }
+
+  /**
+   * Main configurable evaluation method
+   */
+  static async evaluateRun(input: EvaluateRunInput): Promise<EvaluationResult> {
+    // Resolve rule configuration for this device/test combination
+    const config = await resolveProfile({
+      deviceId: input.deviceId,
+      testId: input.testId,
+      at: input.runAt
+    })
+
+    // Calculate Z-score and side
+    const z = WestgardEngine.calculateZScore(input.value, input.limits.mean, input.limits.sd)
+    const side = WestgardEngine.determineSide(z)
+
+    // Evaluate within-level rules with configuration
+    const withinLevelViolations = WestgardEngine.evaluateWithinLevelRulesConfigurable(
+      z, 
+      input.historicalData,
+      config
+    )
+
+    // Evaluate across-level rules if peer runs provided
+    const acrossLevelViolations = input.peerRuns 
+      ? WestgardEngine.evaluateAcrossLevelRulesConfigurable(input.peerRuns, config)
+      : []
+
+    // Combine all violations
+    const allViolations = [...withinLevelViolations, ...acrossLevelViolations]
+
+    // Determine status based on violations
+    const hasFail = allViolations.some(v => v.severity === 'fail')
+    const hasWarn = allViolations.some(v => v.severity === 'warn')
+    
+    let status: 'accepted' | 'rejected' | 'pending'
+    if (hasFail) {
+      status = 'rejected'
+    } else if (hasWarn) {
+      status = 'pending' // Requires review
+    } else {
+      status = 'accepted'
+    }
+
+    return {
+      z,
+      side,
+      status,
+      violations: allViolations
+    }
+  }
+
+  /**
+   * Evaluate within-level Westgard rules for a single QC level (legacy method)
    */
   static evaluateWithinLevelRules(
     currentZ: number,

@@ -156,10 +156,25 @@ export const auditLog = pgTable('audit_log', {
 // Rule Profiles for configuring Westgard rules
 export const ruleProfiles = pgTable('rule_profiles', {
   id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull(),
-  enabledRules: jsonb('enabled_rules').notNull(), // Array of enabled rule codes
-  scope: text('scope').$type<'global' | 'test' | 'device'>().notNull(),
+  name: text('name').notNull().unique(),
+  enabledRules: jsonb('enabled_rules').notNull(),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 })
+
+// Rule Profile Bindings for scope-specific rule application
+export const ruleProfileBindings = pgTable('rule_profile_bindings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  profileId: uuid('profile_id').references(() => ruleProfiles.id, { onDelete: 'cascade' }).notNull(),
+  scopeType: text('scope_type').$type<'global' | 'test' | 'device' | 'device_test'>().notNull(),
+  testId: uuid('test_id').references(() => tests.id),
+  deviceId: uuid('device_id').references(() => devices.id),
+  activeFrom: timestamp('active_from', { withTimezone: true }).defaultNow(),
+  activeTo: timestamp('active_to', { withTimezone: true }),
+}, (table) => ({
+  idxScope: index('idx_rpb_scope').on(table.scopeType, table.testId, table.deviceId, table.activeFrom, table.activeTo),
+}))
 
 // Relations for better type inference
 export const usersRelations = relations(users, ({ many }) => ({
@@ -310,6 +325,29 @@ export const auditLogRelations = relations(auditLog, ({ one }) => ({
   }),
 }))
 
+export const ruleProfilesRelations = relations(ruleProfiles, ({ many, one }) => ({
+  createdByUser: one(users, {
+    fields: [ruleProfiles.createdBy],
+    references: [users.id],
+  }),
+  bindings: many(ruleProfileBindings),
+}))
+
+export const ruleProfileBindingsRelations = relations(ruleProfileBindings, ({ one }) => ({
+  profile: one(ruleProfiles, {
+    fields: [ruleProfileBindings.profileId],
+    references: [ruleProfiles.id],
+  }),
+  test: one(tests, {
+    fields: [ruleProfileBindings.testId],
+    references: [tests.id],
+  }),
+  device: one(devices, {
+    fields: [ruleProfileBindings.deviceId],
+    references: [devices.id],
+  }),
+}))
+
 // Export types for use in the application
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -335,3 +373,5 @@ export type AuditLog = typeof auditLog.$inferSelect
 export type NewAuditLog = typeof auditLog.$inferInsert
 export type RuleProfile = typeof ruleProfiles.$inferSelect
 export type NewRuleProfile = typeof ruleProfiles.$inferInsert
+export type RuleProfileBinding = typeof ruleProfileBindings.$inferSelect
+export type NewRuleProfileBinding = typeof ruleProfileBindings.$inferInsert

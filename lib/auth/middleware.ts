@@ -56,6 +56,11 @@ const ROLE_PERMISSIONS: Record<string, UserRole[]> = {
   'reports:read': ['supervisor', 'qaqc', 'admin'],
   'reports:export': ['supervisor', 'qaqc', 'admin'],
   
+  // Rule profile management  
+  'rule-profiles:read': ['supervisor', 'qaqc', 'admin'],
+  'rule-profiles:write': ['qaqc', 'admin'],
+  'rule-profiles:bind': ['qaqc', 'admin'],
+  
   // System administration
   'users:read': ['admin'],
   'users:write': ['admin'],
@@ -224,6 +229,13 @@ export const ROUTE_PERMISSIONS: Record<string, { permission?: string; minimumRol
   // Reports
   'GET:/api/reports': { permission: 'reports:read' },
   'GET:/api/export': { permission: 'reports:export' },
+  
+  // Rule profiles
+  'GET:/api/rule-profiles': { permission: 'rule-profiles:read' },
+  'POST:/api/rule-profiles': { permission: 'rule-profiles:write' },
+  'PUT:/api/rule-profiles': { permission: 'rule-profiles:write' },
+  'GET:/api/rule-profiles/resolve': { permission: 'rule-profiles:read' },
+  'POST:/api/rule-profiles/*/bindings': { permission: 'rule-profiles:bind' },
   
   // Admin only routes
   'GET:/api/users': { minimumRole: 'admin' },
