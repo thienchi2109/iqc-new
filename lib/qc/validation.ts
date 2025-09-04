@@ -201,6 +201,10 @@ export const qcRunFiltersSchema = z.object({
   // Add approval workflow filters
   approvalState: z.enum(['pending', 'approved', 'rejected']).optional(),
   autoResult: z.enum(['pass', 'warn', 'fail']).optional(),
+  // Text search filters (code/labels)
+  deviceCode: z.string().optional(),
+  testCode: z.string().optional(),
+  level: z.string().optional(),
 }).merge(dateRangeSchema).merge(paginationSchema)
 
 // Quick Entry form validation

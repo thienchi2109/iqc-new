@@ -12,6 +12,7 @@ export const GET = withAuth(
     try {
       const { searchParams } = new URL(request.url)
       const filters = qcRunFiltersSchema.parse(Object.fromEntries(searchParams))
+      const includeCount = searchParams.get('includeCount') === 'true'
 
       let query = db
         .select({
@@ -73,8 +74,11 @@ export const GET = withAuth(
 
       // Apply filters
       if (filters.deviceId) conditions.push(eq(qcRuns.deviceId, filters.deviceId))
+      if (filters.deviceCode) conditions.push(sql`lower(${devices.code}) like ${'%' + filters.deviceCode.toLowerCase() + '%'}`)
       if (filters.testId) conditions.push(eq(qcRuns.testId, filters.testId))
+      if (filters.testCode) conditions.push(sql`lower(${tests.code}) like ${'%' + filters.testCode.toLowerCase() + '%'}`)
       if (filters.levelId) conditions.push(eq(qcRuns.levelId, filters.levelId))
+      if (filters.level) conditions.push(sql`lower(${qcLevels.level}) like ${'%' + filters.level.toLowerCase() + '%'}`)
       if (filters.lotId) conditions.push(eq(qcRuns.lotId, filters.lotId))
       if (filters.status) conditions.push(eq(qcRuns.status, filters.status))
       if (filters.performerId) conditions.push(eq(qcRuns.performerId, filters.performerId))
@@ -99,6 +103,23 @@ export const GET = withAuth(
         value: run.value ? Number(run.value) : null,
         z: run.z ? Number(run.z) : null,
       }))
+
+      if (includeCount) {
+        let countQuery = db
+          .select({ count: sql<number>`count(*)` })
+          .from(qcRuns)
+          .leftJoin(devices, eq(qcRuns.deviceId, devices.id))
+          .leftJoin(tests, eq(qcRuns.testId, tests.id))
+          .leftJoin(qcLevels, eq(qcRuns.levelId, qcLevels.id))
+
+        if (conditions.length > 0) {
+          countQuery = (countQuery.where(and(...conditions)) as typeof countQuery)
+        }
+
+        const countRows = await countQuery
+        const total = Number((countRows?.[0] as any)?.count ?? 0)
+        return NextResponse.json({ data: processedRuns, total })
+      }
 
       return NextResponse.json(processedRuns)
     } catch (error) {

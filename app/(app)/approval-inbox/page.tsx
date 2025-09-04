@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import CustomSelect from '@/components/ui/CustomSelect'
+import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,7 +17,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import {
   Table,
@@ -58,6 +58,11 @@ interface ApprovalAction {
   approvalNote?: string
 }
 
+interface RunsResult {
+  data: PendingRun[]
+  total: number
+}
+
 export default function ApprovalInboxPage() {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
@@ -69,7 +74,17 @@ export default function ApprovalInboxPage() {
     testCode: '',
     level: '',
     autoResult: '',
+    approvalState: 'pending' as '' | 'pending' | 'approved' | 'rejected',
   })
+  const [debouncedFilters, setDebouncedFilters] = useState(filters)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  // Debounce filters for 300ms to avoid excessive queries
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedFilters(filters), 300)
+    return () => clearTimeout(t)
+  }, [filters])
 
   // Check if approval gate is enabled
   const useApprovalGate = process.env.NEXT_PUBLIC_USE_APPROVAL_GATE !== 'false'
@@ -80,25 +95,30 @@ export default function ApprovalInboxPage() {
 
   // Always call hooks in the same order
   // Fetch pending runs (always call, but conditionally enable)
-  const { data: pendingRuns, isLoading, error } = useQuery({
-    queryKey: ['pending-runs', filters],
+  const { data: runsResult, isLoading, error, isFetching } = useQuery({
+    queryKey: ['pending-runs', debouncedFilters, page, pageSize],
     queryFn: async () => {
       const params = new URLSearchParams({
-        approvalState: 'pending',
         limit: '100',
-        ...(filters.deviceCode && { deviceCode: filters.deviceCode }),
-        ...(filters.testCode && { testCode: filters.testCode }),
-        ...(filters.level && { level: filters.level }),
-        ...(filters.autoResult && { autoResult: filters.autoResult }),
+        ...(debouncedFilters.approvalState && { approvalState: debouncedFilters.approvalState }),
+        ...(debouncedFilters.deviceCode && { deviceCode: debouncedFilters.deviceCode }),
+        ...(debouncedFilters.testCode && { testCode: debouncedFilters.testCode }),
+        ...(debouncedFilters.level && { level: debouncedFilters.level }),
+        ...(debouncedFilters.autoResult && { autoResult: debouncedFilters.autoResult }),
       })
-      
+      // Pagination
+      params.set('limit', String(pageSize))
+      params.set('offset', String((page - 1) * pageSize))
+      params.set('includeCount', 'true')
+
       const response = await fetch(`/api/qc/runs?${params}`)
       if (!response.ok) {
-        throw new Error('Failed to fetch pending runs')
+        throw new Error('Không tải được danh sách chờ duyệt')
       }
-      return response.json() as Promise<PendingRun[]>
+      return response.json() as Promise<RunsResult>
     },
     refetchInterval: 30000, // Refresh every 30 seconds
+    placeholderData: (prev) => prev, // keep previous data for smoother UX
     enabled: canApprove && useApprovalGate, // Only enable if authorized
   })
 
@@ -115,13 +135,19 @@ export default function ApprovalInboxPage() {
       
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || `Failed to ${action} run`)
+        throw new Error(
+          error.error || (action === 'approve' ? 'Không thể duyệt lần chạy' : 'Không thể từ chối lần chạy')
+        )
       }
       
       return response.json()
     },
     onSuccess: (data, variables) => {
-      toast.success(`QC run ${variables.action}d successfully`)
+      toast.success(
+        variables.action === 'approve'
+          ? 'Duyệt lần chạy QC thành công'
+          : 'Từ chối lần chạy QC thành công'
+      )
       queryClient.invalidateQueries({ queryKey: ['pending-runs'] })
       queryClient.invalidateQueries({ queryKey: ['qc-runs'] })
       setSelectedRun(null)
@@ -136,18 +162,15 @@ export default function ApprovalInboxPage() {
   // Guard clause for access control (after hooks)
   if (!canApprove || !useApprovalGate) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Access Denied</CardTitle>
-            <CardDescription>
-              {!useApprovalGate 
-                ? 'Approval workflow is currently disabled.'
-                : 'You do not have permission to access the approval inbox. Only supervisors, QA/QC staff, and administrators can approve QC runs.'
-              }
-            </CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-1">Không có quyền truy cập</h2>
+          <p className="text-gray-600">
+            {!useApprovalGate
+              ? 'Tính năng quy trình duyệt đang bị tắt.'
+              : 'Bạn không có quyền truy cập hộp thư duyệt. Chỉ Giám sát, QA/QC và Quản trị viên được phép duyệt QC.'}
+          </p>
+        </div>
       </div>
     )
   }
@@ -162,7 +185,7 @@ export default function ApprovalInboxPage() {
     if (!selectedRun || !action) return
     
     if (action === 'reject' && !approvalNote.trim()) {
-      toast.error('Approval note is required when rejecting a run')
+      toast.error('Cần nhập ghi chú khi từ chối lần chạy')
       return
     }
     
@@ -178,7 +201,7 @@ export default function ApprovalInboxPage() {
       return (
         <Badge className="bg-gray-100 text-gray-800 border-gray-300 flex items-center gap-1">
           <ClockIcon className="h-3 w-3" />
-          PENDING
+          CHỜ DUYỆT
         </Badge>
       )
     }
@@ -198,7 +221,7 @@ export default function ApprovalInboxPage() {
     return (
       <Badge className={`${variants[autoResult]} flex items-center gap-1`}>
         {icons[autoResult]}
-        {autoResult.toUpperCase()}
+        {autoResult === 'pass' ? 'ĐẠT' : autoResult === 'warn' ? 'CẢNH BÁO' : 'KHÔNG ĐẠT'}
       </Badge>
     )
   }
@@ -217,10 +240,10 @@ export default function ApprovalInboxPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto">
         <div className="flex items-center gap-2">
           <ClockIcon className="h-5 w-5 animate-spin" />
-          <span>Loading pending approvals...</span>
+          <span>Đang tải các mục chờ duyệt...</span>
         </div>
       </div>
     )
@@ -228,115 +251,131 @@ export default function ApprovalInboxPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Error</CardTitle>
-            <CardDescription>
-              Failed to load pending approvals. Please try again.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-1">Lỗi</h2>
+          <p className="text-gray-600">Không tải được danh sách chờ duyệt. Vui lòng thử lại.</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2">QC Approval Inbox</h1>
-        <p className="text-gray-600">
-          Review and approve/reject pending QC runs. Runs marked as &apos;fail&apos; require CAPA or subsequent passing runs before approval.
-        </p>
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Hộp thư duyệt QC</h1>
+        <p className="text-gray-600 mt-1">Xem xét và duyệt/Từ chối các lần chạy QC đang chờ. Các lần chạy &quot;không đạt&quot; cần CAPA hoặc lần chạy đạt sau đó trước khi duyệt.</p>
       </div>
 
       {/* Filters */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-lg">Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <Label htmlFor="device">Device</Label>
-              <Input
-                id="device"
-                placeholder="Device code..."
-                value={filters.deviceCode}
-                onChange={(e) => setFilters(prev => ({ ...prev, deviceCode: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label htmlFor="test">Test</Label>
-              <Input
-                id="test"
-                placeholder="Test code..."
-                value={filters.testCode}
-                onChange={(e) => setFilters(prev => ({ ...prev, testCode: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label htmlFor="level">Level</Label>
-              <Input
-                id="level"
-                placeholder="QC Level..."
-                value={filters.level}
-                onChange={(e) => setFilters(prev => ({ ...prev, level: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label htmlFor="result">Auto Result</Label>
-              <select
-                id="result"
-                className="w-full p-2 border rounded"
-                value={filters.autoResult}
-                onChange={(e) => setFilters(prev => ({ ...prev, autoResult: e.target.value }))}
-              >
-                <option value="">All Results</option>
-                <option value="pass">Pass</option>
-                <option value="warn">Warn</option>
-                <option value="fail">Fail</option>
-              </select>
-            </div>
+      <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Bộ lọc</h2>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div>
+            <Label htmlFor="approvalState">Trạng thái duyệt</Label>
+            <CustomSelect
+              options={[
+                { value: 'pending', label: 'Chờ duyệt' },
+                { value: 'approved', label: 'Đã duyệt' },
+                { value: 'rejected', label: 'Từ chối' },
+                { value: '', label: 'Tất cả' },
+              ]}
+              value={filters.approvalState}
+              onChange={(value) => {
+                setFilters(prev => ({ ...prev, approvalState: value as '' | 'pending' | 'approved' | 'rejected' }))
+                setPage(1)
+              }}
+              placeholder="Chọn trạng thái"
+            />
           </div>
-        </CardContent>
-      </Card>
+          <div>
+            <Label htmlFor="device">Thiết bị</Label>
+            <Input
+              id="device"
+              placeholder="Mã thiết bị..."
+              value={filters.deviceCode}
+              onChange={(e) => { setFilters(prev => ({ ...prev, deviceCode: e.target.value })); setPage(1) }}
+            />
+          </div>
+          <div>
+            <Label htmlFor="test">Xét nghiệm</Label>
+            <Input
+              id="test"
+              placeholder="Mã xét nghiệm..."
+              value={filters.testCode}
+              onChange={(e) => { setFilters(prev => ({ ...prev, testCode: e.target.value })); setPage(1) }}
+            />
+          </div>
+          <div>
+            <Label htmlFor="level">Mức</Label>
+            <Input
+              id="level"
+              placeholder="Mức QC..."
+              value={filters.level}
+              onChange={(e) => { setFilters(prev => ({ ...prev, level: e.target.value })); setPage(1) }}
+            />
+          </div>
+          <div>
+            <Label htmlFor="result">Kết quả tự động</Label>
+            <CustomSelect
+              options={[
+                { value: '', label: 'Tất cả kết quả' },
+                { value: 'pass', label: 'Đạt' },
+                { value: 'warn', label: 'Cảnh báo' },
+                { value: 'fail', label: 'Không đạt' },
+              ]}
+              value={filters.autoResult}
+              onChange={(value) => { setFilters(prev => ({ ...prev, autoResult: value })); setPage(1) }}
+              placeholder="Tất cả kết quả"
+            />
+          </div>
+        </div>
+      </div>
 
       {/* Pending Runs Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Pending Approvals ({pendingRuns?.length || 0})</span>
-            <Badge variant="outline" className="flex items-center gap-1">
-              <ClockIcon className="h-3 w-3" />
-              Auto-refresh
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!pendingRuns || pendingRuns.length === 0 ? (
+      <div className="bg-white rounded-2xl shadow-md border border-gray-200">
+        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">
+            {debouncedFilters.approvalState === 'approved'
+              ? 'Đã duyệt'
+              : debouncedFilters.approvalState === 'rejected'
+              ? 'Từ chối'
+              : debouncedFilters.approvalState === ''
+              ? 'Tất cả trạng thái'
+              : 'Đang chờ duyệt'}{' '}
+            ({runsResult?.total ?? 0})
+          </h2>
+          <Badge variant="outline" className="flex items-center gap-1">
+            <ClockIcon className="h-3 w-3" />
+            {isFetching ? 'Đang làm mới…' : 'Tự động làm mới'}
+          </Badge>
+        </div>
+        <div className="p-6">
+          {!runsResult || runsResult.data.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <ClockIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>No pending approvals found</p>
-              <p className="text-sm">All QC runs have been processed</p>
+              <p>Không có dữ liệu phù hợp</p>
+              <p className="text-sm">Điều chỉnh bộ lọc hoặc thử lại</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Device</TableHead>
-                  <TableHead>Test</TableHead>
-                  <TableHead>Level</TableHead>
-                  <TableHead>Value</TableHead>
-                  <TableHead>Z-Score</TableHead>
-                  <TableHead>Auto Result</TableHead>
-                  <TableHead>Performer</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>Thiết bị</TableHead>
+                  <TableHead>Xét nghiệm</TableHead>
+                  <TableHead>Mức</TableHead>
+                  <TableHead>Giá trị</TableHead>
+                  <TableHead>Z-score</TableHead>
+                  <TableHead>Kết quả tự động</TableHead>
+                  <TableHead>Người thực hiện</TableHead>
+                  <TableHead>Thời gian tạo</TableHead>
+                  {(debouncedFilters.approvalState === '' || debouncedFilters.approvalState === 'pending') && (
+                    <TableHead>Thao tác</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pendingRuns.map((run) => (
+                {runsResult.data.map((run) => (
                   <TableRow key={run.id}>
                     <TableCell>
                       <div>
@@ -360,65 +399,141 @@ export default function ApprovalInboxPage() {
                     <TableCell className="text-sm">
                       {formatDateTime(run.createdAt)}
                     </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => handleApprovalAction(run, 'approve')}
-                          disabled={approvalMutation.isPending}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          <CheckIcon className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleApprovalAction(run, 'reject')}
-                          disabled={approvalMutation.isPending}
-                        >
-                          <XIcon className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {(debouncedFilters.approvalState === '' || debouncedFilters.approvalState === 'pending') && (
+                      <TableCell>
+                        {run.approvalState === 'pending' ? (
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleApprovalAction(run, 'approve')}
+                              disabled={approvalMutation.isPending}
+                              className="bg-green-600 hover:bg-green-700"
+                              aria-label="Duyệt"
+                            >
+                              <CheckIcon className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleApprovalAction(run, 'reject')}
+                              disabled={approvalMutation.isPending}
+                              aria-label="Từ chối"
+                            >
+                              <XIcon className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : null}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+          {/* Pagination */}
+          <div className="mt-4 flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              {(() => {
+                const total = runsResult?.total ?? 0
+                const start = total === 0 ? 0 : (page - 1) * pageSize + 1
+                const end = Math.min(page * pageSize, total)
+                return `Hiển thị ${start}-${end} trong ${total}`
+              })()}
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-40">
+                <Select
+                  value={String(pageSize)}
+                  onChange={(e) => {
+                    const newSize = Number(e.target.value || 10)
+                    setPageSize(newSize)
+                    setPage(1)
+                  }}
+                >
+                  <option value="10">10 hàng</option>
+                  <option value="20">20 hàng</option>
+                  <option value="50">50 hàng</option>
+                  <option value="100">100 hàng</option>
+                </Select>
+              </div>
+              {(() => {
+                const total = runsResult?.total ?? 0
+                const totalPages = Math.max(1, Math.ceil(total / pageSize))
+                const canPrev = page > 1
+                const canNext = page < totalPages
+
+                // Build simple page list (max 7 buttons)
+                const pages: number[] = []
+                const maxButtons = 7
+                let start = Math.max(1, page - 3)
+                let end = Math.min(totalPages, start + maxButtons - 1)
+                if (end - start + 1 < maxButtons) {
+                  start = Math.max(1, end - maxButtons + 1)
+                }
+                for (let p = start; p <= end; p++) pages.push(p)
+
+                return (
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={!canPrev}>
+                      «
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setPage(page - 1)} disabled={!canPrev}>
+                      Trước
+                    </Button>
+                    {pages.map((p) => (
+                      <Button
+                        key={p}
+                        variant={p === page ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setPage(p)}
+                      >
+                        {p}
+                      </Button>
+                    ))}
+                    <Button variant="outline" size="sm" onClick={() => setPage(page + 1)} disabled={!canNext}>
+                      Sau
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setPage(totalPages)} disabled={!canNext}>
+                      »
+                    </Button>
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Approval Dialog */}
       <Dialog open={!!selectedRun && !!action} onOpenChange={() => setSelectedRun(null)}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>
-              {action === 'approve' ? 'Approve QC Run' : 'Reject QC Run'}
+              {action === 'approve' ? 'Duyệt lần chạy QC' : 'Từ chối lần chạy QC'}
             </DialogTitle>
-            <DialogDescription>
-              {selectedRun && (
-                <div className="space-y-2">
-                  <p><strong>Device:</strong> {selectedRun.deviceCode} - {selectedRun.deviceName}</p>
-                  <p><strong>Test:</strong> {selectedRun.testCode} - {selectedRun.testName}</p>
-                  <p><strong>Level:</strong> {selectedRun.level}</p>
-                  <p><strong>Value:</strong> {selectedRun.value}</p>
-                  <p><strong>Auto Result:</strong> {getAutoResultBadge(selectedRun.autoResult)}</p>
-                  <p><strong>Performer:</strong> {selectedRun.performerName}</p>
-                </div>
-              )}
-            </DialogDescription>
+            <DialogDescription>Vui lòng kiểm tra thông tin trước khi xác nhận.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {selectedRun && (
+              <div className="space-y-2 text-sm text-gray-700">
+                <div><strong>Thiết bị:</strong> {selectedRun.deviceCode} - {selectedRun.deviceName}</div>
+                <div><strong>Xét nghiệm:</strong> {selectedRun.testCode} - {selectedRun.testName}</div>
+                <div><strong>Mức:</strong> {selectedRun.level}</div>
+                <div><strong>Giá trị:</strong> {selectedRun.value}</div>
+                <div className="flex items-center gap-2"><strong>Kết quả tự động:</strong> {getAutoResultBadge(selectedRun.autoResult)}</div>
+                <div><strong>Người thực hiện:</strong> {selectedRun.performerName}</div>
+              </div>
+            )}
             <div>
               <Label htmlFor="approval-note">
-                {action === 'reject' ? 'Rejection Reason *' : 'Approval Note (Optional)'}
+                {action === 'reject' ? 'Lý do từ chối *' : 'Ghi chú duyệt (không bắt buộc)'}
               </Label>
               <Textarea
                 id="approval-note"
                 placeholder={
                   action === 'reject' 
-                    ? 'Please provide a reason for rejection...' 
-                    : 'Optional note about this approval...'
+                    ? 'Vui lòng nhập lý do từ chối...' 
+                    : 'Ghi chú tùy chọn cho lần duyệt này...'
                 }
                 value={approvalNote}
                 onChange={(e) => setApprovalNote(e.target.value)}
@@ -433,7 +548,7 @@ export default function ApprovalInboxPage() {
               onClick={() => setSelectedRun(null)}
               disabled={approvalMutation.isPending}
             >
-              Cancel
+              Hủy
             </Button>
             <Button
               onClick={submitApprovalAction}
@@ -441,8 +556,8 @@ export default function ApprovalInboxPage() {
               className={action === 'approve' ? 'bg-green-600 hover:bg-green-700' : ''}
               variant={action === 'reject' ? 'destructive' : 'default'}
             >
-              {approvalMutation.isPending ? 'Processing...' : 
-                action === 'approve' ? 'Approve' : 'Reject'
+              {approvalMutation.isPending ? 'Đang xử lý...' : 
+                action === 'approve' ? 'Duyệt' : 'Từ chối'
               }
             </Button>
           </DialogFooter>
