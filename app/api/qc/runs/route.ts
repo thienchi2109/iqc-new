@@ -93,7 +93,14 @@ export const GET = withAuth(
         .limit(filters.limit)
         .offset(filters.offset)
 
-      return NextResponse.json(runs)
+      // Convert numeric fields to numbers for frontend consumption
+      const processedRuns = runs.map(run => ({
+        ...run,
+        value: run.value ? Number(run.value) : null,
+        z: run.z ? Number(run.z) : null,
+      }))
+
+      return NextResponse.json(processedRuns)
     } catch (error) {
       console.error('Error fetching QC runs:', error)
       return NextResponse.json(

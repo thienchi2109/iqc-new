@@ -33,7 +33,7 @@ interface PendingRun {
   id: string
   value: number
   z: number
-  autoResult: 'pass' | 'warn' | 'fail'
+  autoResult: 'pass' | 'warn' | 'fail' | null
   approvalState: 'pending' | 'approved' | 'rejected'
   deviceCode: string
   deviceName: string
@@ -173,7 +173,16 @@ export default function ApprovalInboxPage() {
     })
   }
 
-  const getAutoResultBadge = (autoResult: 'pass' | 'warn' | 'fail') => {
+  const getAutoResultBadge = (autoResult: 'pass' | 'warn' | 'fail' | null) => {
+    if (!autoResult) {
+      return (
+        <Badge className="bg-gray-100 text-gray-800 border-gray-300 flex items-center gap-1">
+          <ClockIcon className="h-3 w-3" />
+          PENDING
+        </Badge>
+      )
+    }
+
     const variants = {
       pass: 'bg-green-100 text-green-800 border-green-300',
       warn: 'bg-yellow-100 text-yellow-800 border-yellow-300',
@@ -345,7 +354,7 @@ export default function ApprovalInboxPage() {
                       <Badge variant="outline">{run.level}</Badge>
                     </TableCell>
                     <TableCell className="font-mono">{run.value}</TableCell>
-                    <TableCell className="font-mono">{run.z.toFixed(2)}</TableCell>
+                    <TableCell className="font-mono">{run.z != null ? run.z.toFixed(2) : 'N/A'}</TableCell>
                     <TableCell>{getAutoResultBadge(run.autoResult)}</TableCell>
                     <TableCell>{run.performerName}</TableCell>
                     <TableCell className="text-sm">
