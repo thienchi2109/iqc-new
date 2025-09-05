@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import CatalogTable, { Column } from '@/components/CatalogTable'
 import CatalogFormDrawer, { FormField } from '@/components/CatalogFormDrawer'
 import { useQcLimits, useCreateQcLimit, useUpdateQcLimit, useDeleteQcLimit } from '@/hooks/catalog'
+import CustomSelect from '@/components/ui/CustomSelect'
 import { useTests, useDevices, useQcLevels, useQcLots } from '@/hooks/catalog'
 import { QcLimit } from '@/lib/db/schema'
 
@@ -179,49 +180,37 @@ export default function QcLimitsPage() {
       </div>
 
       <div className="mb-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <select
+        <CustomSelect
+          className="min-w-[180px]"
           value={filters.testId}
-          onChange={(e) => setFilters(prev => ({ ...prev, testId: e.target.value }))}
-          className="border border-gray-300 rounded-md px-3 py-2"
-        >
-          <option value="">All Tests</option>
-          {tests.map(test => (
-            <option key={test.id} value={test.id}>{test.code}</option>
-          ))}
-        </select>
-        
-        <select
+          onChange={(value) => setFilters(prev => ({ ...prev, testId: value }))}
+          options={[{ value: '', label: 'All Tests' }, ...tests.map(test => ({ value: test.id, label: `${test.code} - ${test.name}` }))]}
+          placeholder="All Tests"
+        />
+
+        <CustomSelect
+          className="min-w-[180px]"
           value={filters.deviceId}
-          onChange={(e) => setFilters(prev => ({ ...prev, deviceId: e.target.value }))}
-          className="border border-gray-300 rounded-md px-3 py-2"
-        >
-          <option value="">All Devices</option>
-          {devices.map(device => (
-            <option key={device.id} value={device.id}>{device.code}</option>
-          ))}
-        </select>
+          onChange={(value) => setFilters(prev => ({ ...prev, deviceId: value }))}
+          options={[{ value: '', label: 'All Devices' }, ...devices.map(device => ({ value: device.id, label: `${device.code} - ${device.name}` }))]}
+          placeholder="All Devices"
+        />
 
-        <select
+        <CustomSelect
+          className="min-w-[160px]"
           value={filters.levelId}
-          onChange={(e) => setFilters(prev => ({ ...prev, levelId: e.target.value }))}
-          className="border border-gray-300 rounded-md px-3 py-2"
-        >
-          <option value="">All Levels</option>
-          {levels.map(level => (
-            <option key={level.id} value={level.id}>{level.level}</option>
-          ))}
-        </select>
+          onChange={(value) => setFilters(prev => ({ ...prev, levelId: value }))}
+          options={[{ value: '', label: 'All Levels' }, ...levels.map(level => ({ value: level.id, label: level.level }))]}
+          placeholder="All Levels"
+        />
 
-        <select
+        <CustomSelect
+          className="min-w-[160px]"
           value={filters.lotId}
-          onChange={(e) => setFilters(prev => ({ ...prev, lotId: e.target.value }))}
-          className="border border-gray-300 rounded-md px-3 py-2"
-        >
-          <option value="">All Lots</option>
-          {lots.map(lot => (
-            <option key={lot.id} value={lot.id}>{lot.lotCode}</option>
-          ))}
-        </select>
+          onChange={(value) => setFilters(prev => ({ ...prev, lotId: value }))}
+          options={[{ value: '', label: 'All Lots' }, ...lots.map(lot => ({ value: lot.id, label: lot.lotCode }))]}
+          placeholder="All Lots"
+        />
       </div>
 
       <CatalogTable

@@ -22,6 +22,15 @@ Mục tiêu của C‑Lab IQC Pro:
 
 ## Requirements
 
+### Bổ sung: Approval Workflow (MUST)
+
+- **Trạng thái duyệt**: mỗi run có `approval_state: pending|approved|rejected` (mặc định `pending`).
+- **Tự động chấm**: engine lưu `auto_result: pass|warn|fail` (không thay thế quy trình duyệt).
+- **Quyền**: `supervisor` & `qaqc` có thể *Approve/Reject*; `admin` override (log audit).
+- **Nguyên tắc**: *approved* → khóa (read‑only), có hiệu lực trong vận hành & báo cáo; *pending/rejected* → không dùng làm “QC hợp lệ”.
+- **Điều kiện**: nếu `auto_result='fail'` thì chỉ được *Approve* khi có **CAPA approved** hoặc có **run pass** thay thế sau đó cho cùng *test×device×level×lot*.
+- **Hiển thị**: trên L‑J, màu theo `auto_result` (xanh/vàng/đỏ), **hollow** nếu `pending`, **solid** nếu `approved/rejected`.
+
 ### Phạm vi MVP đã chốt
 
 - **Nhiều máy**, **nhiều xét nghiệm**, **1–3 mức QC/test**.
@@ -33,15 +42,13 @@ Mục tiêu của C‑Lab IQC Pro:
 
 - Quản lý danh mục: **Thiết bị (máy)**, **Xét nghiệm (test/analyte)**, **Mức QC** (L1/L2/L3), **Lô QC theo mức** (lot, **Expire Date**, ngày hiệu lực), **Đơn vị**.
 - Cấu hình **giới hạn QC** cho từng *test × mức × lô*: **Mean**, **SD**, **%CV** (tự tính: `%CV = SD/Mean × 100`); hỗ trợ nhập từ nhà sản xuất hoặc do lab xác lập.
-- Giao diện **nhập dữ liệu QC** theo run: *ngày/giờ, máy, test, mức, ****lô (theo mức)****, ****hạn dùng (Expire Date)****, ****phương pháp xét nghiệm****, ****đơn vị tính**** (enum, auto‑fill theo **test × máy**), ****giá trị đo****, ****người thực hiện****, ghi chú*.
+- Giao diện **nhập dữ liệu QC** theo run: *ngày/giờ, máy, test, mức, ****lô (theo mức)****, ****hạn dùng (Expire Date)****, ****phương pháp xét nghiệm****, ****đơn vị tính**** (enum, auto‑fill theo ****test × máy****), ****giá trị đo****, ****người thực hiện****, ghi chú*.
 - **Tự động tính**: Z‑score, vị trí so với Mean, mốc ±1/2/3SD.
 - **Biểu đồ Levey–Jennings** theo *test × máy × mức × lô* với các đường Mean, ±1SD, ±2SD, ±3SD; tua theo ngày.
-- **Bộ máy Westgard** (1‑3s, 1‑2s [cảnh báo], 2‑2s, R‑4s, 4‑1s, 10x; tuỳ chọn 7T/8x/12x) áp dụng ngay khi nhập; hiển thị **màu**: xanh/vàng/đỏ theo kết quả tự động.
-- **Quy trình duyệt QC**: Tất cả QC run tạo ra ở trạng thái "chờ duyệt"; chỉ Trưởng khoa/QLCL/Admin mới có thể duyệt/từ chối.
-- **Chấp nhận/Loại run sau duyệt**: Run được duyệt mới được tính là "valid QC" cho lịch sử; run chờ duyệt/từ chối không được tính.
-- **CAPA bắt buộc**: Run auto\_result="fail" chỉ được duyệt nếu có CAPA đã duyệt hoặc có run tiếp theo PASS.
+- **Bộ máy Westgard** (1‑3s, 1‑2s [cảnh báo], 2‑2s, R‑4s, 4‑1s, 10x; tuỳ chọn 7T/8x/12x) áp dụng ngay khi nhập; hiển thị **màu**: xanh/vàng/đỏ.
+- **Chấp nhận/Loại run** theo kết quả quy tắc; bắt buộc nhập **CAPA** (nguyên nhân/khắc phục) khi bị loại; lưu **violation log**.
 - **Báo cáo**: tỷ lệ vi phạm theo *máy/test/tháng*; nhật ký CAPA; xuất **Excel**.
-- **Phân quyền**: KTV (nhập), Trưởng khoa/QLCL/Admin (duyệt QC), QLCL (báo cáo), Admin (cấu hình). Có **audit log đầy đủ**.
+- **Phân quyền**: KTV (nhập), Trưởng khoa (duyệt/loại run), QLCL (báo cáo), Admin (cấu hình). Có **audit log**.
 - **Ngôn ngữ giao diện**: mặc định **Tiếng Việt**; định dạng thời gian **Asia/Ho\_Chi\_Minh**; **dấu thập phân là dấu "."**.
 
 
@@ -136,8 +143,8 @@ SUP --> APP
 - **qc\_limits**: `id, test_id, level_id, lot_id, device_id, mean, sd, cv, source enum('manufacturer','lab'), created_by`.
   - **Unique** `(test_id, level_id, lot_id, device_id)`.
 - **run\_groups**: `id, device_id, test_id, run_at timestamptz, created_by` *(gom các mức đo cùng giờ)*.
-- **qc\_runs**: `id, group_id FK?, device_id, test_id, level_id, lot_id, value, unit_id, method_id, performer_id, status enum('pending','accepted','rejected'), auto_result enum('pass','warn','fail'), approval_state enum('pending','approved','rejected') DEFAULT 'pending', approved_by FK users(id), approved_at timestamptz, approval_note text, z, side enum('above','below','on'), notes, created_at`.
-  - **Index** `(test_id, device_id, level_id, lot_id, created_at)`, `(approval_state, created_at)`, `(auto_result, created_at)`.
+- **qc\_runs**: `id, group_id FK?, device_id, test_id, level_id, lot_id, value, unit_id, method_id, performer_id, status enum('pending','accepted','rejected'), z, side enum('above','below','on'), notes, created_at`.
+  - **Index** `(test_id, device_id, level_id, lot_id, created_at)`.
 - **violations**: `id, run_id, rule_code, severity enum('warn','fail'), window_size, details JSONB, created_at`.
   - **Index** `(run_id, rule_code)`.
 - **capa**: `id, run_id, root_cause, action, approver_id, status enum('draft','submitted','approved','rejected'), created_at`.
@@ -172,7 +179,7 @@ export const qcLimits = pgTable('qc_limits', {
 
 **Đánh giá quy tắc cho một run mới**
 
-- Lấy **cửa sổ trượt** các `z` gần nhất theo *test × device × level × lot* (mặc định 12 điểm) và **các mức trong cùng **`` cho **R‑4s**.
+- Lấy **cửa sổ trượt** các `z` gần nhất theo *test × device × level × lot* (mặc định 12 điểm) và \*\*các mức trong cùng \*\*\`\` cho **R‑4s**.
 - Quy tắc mặc định (MVP): `1-3s` (fail), `1-2s` (warn), `2-2s` (fail), `R-4s` (fail), `4-1s` (fail), `10x` (fail), `7T` (fail). Các rule khác bật qua `rule_profiles`.
 
 **Pseudocode**
@@ -196,10 +203,9 @@ const status = vios.some(v => v.severity==='fail') ? 'rejected' : 'accepted';
 
 **Hiển thị trên L‑J (Recharts)**
 
-- Trục Y: giá trị; vẽ các dải ±1/2/3SD; chấm dữ liệu tô **xanh/vàng/đỏ** theo `auto_result`.
-- **Dot style**: rỗng (hollow) cho `approval_state='pending'`, đặc (solid) cho đã duyệt/từ chối.
-- Tooltip: `value`, `z`, `auto_result`, `approval_state`, `rule` vi phạm, `performer`, `lot`, `expire`.
-- Lọc: *device/test/level/lot/date range* + `approval_state`/`auto_result`; tuỳ chọn overlay 3 mức (Should‑have).
+- Trục Y: giá trị; vẽ các dải ±1/2/3SD; chấm dữ liệu tô **xanh/vàng/đỏ** theo `status`.
+- Tooltip: `value`, `z`, `rule` vi phạm, `performer`, `lot`, `expire`.
+- Lọc: *device/test/level/lot/date range*; tuỳ chọn overlay 3 mức (Should‑have).
 
 ---
 
@@ -223,6 +229,15 @@ const status = vios.some(v => v.severity==='fail') ? 'rejected' : 'accepted';
 
 - Thay **uPlot** bằng **Recharts**: dùng `LineChart`, `ReferenceLine/ReferenceArea` để vẽ Mean và các dải ±1/±2/±3SD; `Customized` cho dot tô màu theo `status`; `Brush` để tua theo ngày; `Tooltip` hiển thị z‑score, rule vi phạm, performer.
 
+### (Bổ sung) Approval Workflow – dữ liệu & sequence (Method)
+
+- **DB**: thêm cột `qc_runs.auto_result (pass|warn|fail)`, `approval_state (pending|approved|rejected, default 'pending')`, `approved_by (uuid)`, `approved_at (timestamptz)`, `approval_note (text)`; index `(approval_state, created_at)`.
+- **Sequence**:
+  1. KTV nhập run → Engine tính rule & set `auto_result`.
+  2. Run vào **Approval Inbox** với `approval_state='pending'`.
+  3. Supervisor/QA: *Approve* (nếu `fail` → cần CAPA approved hoặc rerun pass) / *Reject* (bắt buộc ghi chú).
+  4. *Approved* → khóa, dùng cho vận hành & báo cáo.
+
 ## Implementation
 
 ### 1) Công nghệ & phiên bản
@@ -241,10 +256,8 @@ const status = vios.some(v => v.severity==='fail') ? 'rejected' : 'accepted';
 - `POST /api/qc/limits` – tạo/ cập nhật Mean/SD/%CV theo *test×level×lot×device*.
 - `POST /api/qc/lots` – tạo lot (level‑scoped) + `expire_date`.
 - `POST /api/qc/run-groups` – tạo nhóm giờ cho phiên đo.
-- `POST /api/qc/runs` – nhập run: tính `z`, kiểm **Westgard**, trả `auto_result`+`violations`; tất cả run tạo ra ở `approval_state='pending'`.
-- `GET /api/qc/runs` – lọc theo *device/test/level/lot/date range* + `approval_state`/`auto_result` (phục vụ bảng & chart).
-- `POST /api/qc/runs/:id/approve` – duyệt QC run (chỉ supervisor/qaqc/admin); kiểm tra business rule cho `auto_result='fail'`.
-- `POST /api/qc/runs/:id/reject` – từ chối QC run với lý do bắt buộc (chỉ supervisor/qaqc/admin).
+- `POST /api/qc/runs` – nhập run: tính `z`, kiểm **Westgard**, trả `status`+`violations`; nếu `rejected` → yêu cầu tạo **CAPA**.
+- `GET /api/qc/runs` – lọc theo *device/test/level/lot/date range* (phục vụ bảng & chart).
 - `POST /api/qc/capa` – tạo/duyệt CAPA.
 - `GET /api/qc/violations` – liệt kê vi phạm theo filter.
 - `GET /api/reports/summary` – tỷ lệ vi phạm theo máy/test/tháng; **Excel**: `GET /api/export/excel`.
@@ -300,7 +313,113 @@ const status = vios.some(v => v.severity==='fail') ? 'rejected' : 'accepted';
 - Chính sách dữ liệu: không xóa cứng `qc_runs`; `status` + `audit_log` cho sửa/thu hồi.
 - Dashboard cảnh báo: thẻ *Warning/Fail* theo máy/test; quick link mở biểu đồ L‑J đã lọc đúng.
 
+### 10) Settings – cấu hình **Westgard** (bổ sung)
 
+**Mục tiêu**: Cho phép QA/Admin **tạo profile quy tắc**, **gán phạm vi áp dụng** và **ưu tiên** khi chấm run.
+
+**Dữ liệu**
+
+- `rule_profiles(id, name, enabled_rules JSONB, created_by, updated_at)`
+- `rule_profile_bindings(id, profile_id, scope_type enum('global','test','device','device_test'), test_id?, device_id?, active_from, active_to)`
+  - **Unique** theo phạm vi: ví dụ `(scope_type='global')` chỉ 1 bản ghi đang hiệu lực; `(device_test)` unique theo `(device_id,test_id)`.
+
+**Ví dụ JSON cấu hình** (`enabled_rules`)
+
+```json
+{
+  "rules": {
+    "1-3s": {"enabled": true,  "severity": "fail"},
+    "1-2s": {"enabled": true,  "severity": "warn"},
+    "2-2s": {"enabled": true},
+    "R-4s": {"enabled": true, "within_run_across_levels": true, "across_runs": true, "delta_sd": 4},
+    "4-1s": {"enabled": true,  "threshold_sd": 1, "window": 4},
+    "Nx":   {"enabled": true,  "n": 10},
+    "7T":   {"enabled": true,  "n": 7},
+    "2of3-2s": {"enabled": false, "threshold_sd": 2, "window": 3},
+    "3-1s":   {"enabled": false, "threshold_sd": 1, "window": 3},
+    "6x":     {"enabled": false, "n": 6}
+  },
+  "window_size_default": 12
+}
+```
+
+**UI/UX – trang Settings → Westgard Rules**
+
+1. **Profiles** (danh sách): tên, mô tả ngắn, số rule bật, ngày cập nhật; nút **New / Clone**.
+2. **Editor**: các công tắc/tùy chọn:
+   - Toggle từng rule; chọn **severity** cho `1-2s` (mặc định *warn*), tham số `n` cho `Nx` (8/10/12), `threshold_sd/window` cho `4-1s`, `2of3-2s`, `3-1s`, `6x`.
+   - `R-4s`: bật **within-run across-levels** (L1 vs L2/L3 cùng group) và/hoặc **across-runs** (2 điểm liên tiếp trái dấu chênh ≥4SD).
+   - **(Mới)**: metadata `` và `` (`within_level|across_levels|either|across_levels_or_time`) cho từng rule để engine tự **bỏ qua** rule khi lượt không đủ số mức QC.
+   - **(Mới)**: **Nx mở rộng** (`Nx_ext`) cho {**6x, 8x, 9x, 12x**}.
+3. **Assignments** (Bindings): gán profile theo **Global**, **Test**, hoặc **Device×Test**. Cho phép đặt **ngày hiệu lực**.
+4. **Priority** (đọc‑chỉ): *Device×Test > Test > Global*.
+
+**API bổ sung**
+
+- `GET /api/rule-profiles` – liệt kê profiles.
+- `POST /api/rule-profiles` – tạo.
+- `PUT /api/rule-profiles/:id` – cập nhật JSON rules.
+- `POST /api/rule-profiles/:id/bindings` – gán phạm vi.
+- `GET /api/rule-profiles/resolve?deviceId=&testId=` – trả về profile **effective** theo chuỗi ưu tiên.
+
+**Áp dụng khi chấm run** (WestgardEngine)
+
+```ts
+const profile = await resolveProfile({ deviceId, testId, at: runAt });
+const cfg = profile.enabled_rules;
+// truyền cfg vào các hàm evaluate* để biết rule nào bật, tham số n/window/severity…
+```
+
+**Quyền hạn**
+
+- Chỉ **Admin** và **QA/QC** được vào Settings → Westgard Rules. Thao tác có **audit\_log**.
+
+---
+
+### (Mới) Metadata rule & default theo yêu cầu
+
+- ``: số mức QC tối thiểu để áp dụng rule (1/2/3). Nếu lượt không đủ mức → engine **skip** rule đó.
+- ``:
+  - `within_level`: xét chuỗi theo **một mức** qua các lượt.
+  - `across_levels`: xét **các mức trong cùng run\_group**.
+  - `either`: chấp nhận cả hai cách.
+  - `across_levels_or_time`: tổng hợp theo mức và thời gian (cho Nx mở rộng).
+- **Mặc định cập nhật**:
+  - Bật ``** across-levels within-run** (ngoài within-level): `"within_run_across_levels": true`.
+  - Bật `` với `n_set: [8,9,10,12]`.
+
+**Ví dụ JSON cấu hình (cập nhật)**
+
+```json
+{
+  "window_size_default": 12,
+  "rules": {
+    "1-3s": {"enabled": true,  "severity": "fail", "required_levels": 1, "scope": "within_level"},
+    "1-2s": {"enabled": true,  "severity": "warn", "required_levels": 1, "scope": "within_level"},
+    "2-2s": {"enabled": true,  "required_levels": 1, "scope": "either", "across_runs": true, "within_run_across_levels": true},
+    "R-4s": {"enabled": true,  "required_levels": 2, "scope": "across_levels", "within_run": true, "delta_sd": 4},
+    "4-1s": {"enabled": true,  "required_levels": 1, "scope": "within_level", "window": 4},
+    "Nx":   {"enabled": false, "required_levels": 1, "scope": "within_level", "n": 10},
+    "3-1s": {"enabled": false, "required_levels": 1, "scope": "either", "window": 3},
+    "2of3-2s": {"enabled": false, "required_levels": 1, "scope": "either", "threshold_sd": 2, "window": 3},
+    "6x": {"enabled": false, "required_levels": 1, "scope": "within_level", "n": 6},
+    "Nx_ext": {"enabled": true,  "required_levels": 1, "scope": "across_levels_or_time", "n_set": [8,9,10,12]}
+  }
+}
+```
+
+---
+
+### (Bổ sung) Approval Workflow – API & UI (Implementation)
+
+- **Feature flag**: `.env` → `USE_APPROVAL_GATE=true` (ẩn toàn bộ UI/API duyệt khi `false`).
+- **API**:
+  - `POST /api/qc/runs/:id/approve` (role: `supervisor|qaqc|admin`): kiểm CAPA/rerun khi `auto_result='fail'`; cập nhật `approval_state='approved'`, `approved_by/approved_at/approval_note`; ghi `audit_log`.
+  - `POST /api/qc/runs/:id/reject` (role: `supervisor|qaqc|admin`): bắt buộc `approval_note`; cập nhật `approval_state='rejected'`; ghi `audit_log`.
+  - `GET /api/qc/runs` trả dữ liệu *pretty* (join device/test/level/unit/method) + `auto_result`, `approval_state`.
+- **UI**:
+  - **Approval Inbox**: danh sách `pending` theo *device/test/level/date*; hành động *Approve/Reject* (modal note); chỉ hiển thị cho `supervisor|qaqc|admin`.
+  - **L‑J Chart**: dot **màu** theo `auto_result`, **hollow/solid** theo `approval_state`; tooltip hiển thị `auto_result`, `approval_state`, `violations`, `performer`, `lot/expire`.
 
 ## Milestones
 

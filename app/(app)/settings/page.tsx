@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import CustomSelect from '@/components/ui/CustomSelect'
 import { Card } from '@/components/ui/card'
 
 interface CatalogItem {
@@ -15,48 +15,13 @@ interface CatalogItem {
 }
 
 const catalogItems: CatalogItem[] = [
-  {
-    name: 'Tests',
-    href: '/settings/catalog/tests',
-    description: 'Manage laboratory tests and analytes',
-    icon: '🧪'
-  },
-  {
-    name: 'Devices',
-    href: '/settings/catalog/devices',
-    description: 'Manage laboratory instruments and analyzers',
-    icon: '🧨'
-  },
-  {
-    name: 'Units',
-    href: '/settings/catalog/units',
-    description: 'Manage measurement units',
-    icon: '📏'
-  },
-  {
-    name: 'Methods',
-    href: '/settings/catalog/methods',
-    description: 'Manage analytical methods',
-    icon: '⚙️'
-  },
-  {
-    name: 'QC Levels',
-    href: '/settings/catalog/qc-levels',
-    description: 'Manage quality control levels (L1, L2, L3)',
-    icon: '🔴'
-  },
-  {
-    name: 'QC Lots',
-    href: '/settings/catalog/qc-lots',
-    description: 'Manage quality control lots and batches',
-    icon: '📦'
-  },
-  {
-    name: 'QC Limits',
-    href: '/settings/catalog/qc-limits',
-    description: 'Manage QC statistical limits (mean, SD, CV)',
-    icon: '📉'
-  }
+  { name: 'Tests', href: '/settings/catalog/tests', description: 'Manage laboratory tests and analytes', icon: '🧪' },
+  { name: 'Devices', href: '/settings/catalog/devices', description: 'Manage laboratory instruments and analyzers', icon: '🧫' },
+  { name: 'Units', href: '/settings/catalog/units', description: 'Manage measurement units', icon: '📐' },
+  { name: 'Methods', href: '/settings/catalog/methods', description: 'Manage analytical methods', icon: '⚙️' },
+  { name: 'QC Levels', href: '/settings/catalog/qc-levels', description: 'Manage quality control levels (L1, L2, L3)', icon: '📊' },
+  { name: 'QC Lots', href: '/settings/catalog/qc-lots', description: 'Manage quality control lots and batches', icon: '🏷️' },
+  { name: 'QC Limits', href: '/settings/catalog/qc-limits', description: 'Manage QC statistical limits (mean, SD, CV)', icon: '📈' },
 ]
 
 export default function Settings() {
@@ -82,23 +47,27 @@ export default function Settings() {
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Application Settings</h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Language
-              </label>
-              <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
-                <option value="en">English</option>
-                <option value="vi">Tiếng Việt</option>
-              </Select>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
+              <CustomSelect
+                value={language}
+                onChange={setLanguage}
+                options={[
+                  { value: 'en', label: 'English' },
+                  { value: 'vi', label: 'Tiếng Việt' },
+                ]}
+              />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Theme
-              </label>
-              <Select value={theme} onChange={(e) => setTheme(e.target.value)}>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-              </Select>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Theme</label>
+              <CustomSelect
+                value={theme}
+                onChange={setTheme}
+                options={[
+                  { value: 'light', label: 'Light' },
+                  { value: 'dark', label: 'Dark' },
+                ]}
+              />
             </div>
 
             <div className="flex justify-end">
@@ -122,19 +91,10 @@ export default function Settings() {
               >
                 <span className="text-xl mr-3">{item.icon}</span>
                 <div className="flex-1">
-                  <div className="font-medium text-gray-900 group-hover:text-blue-700">
-                    {item.name}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {item.description}
-                  </div>
+                  <div className="font-medium text-gray-900 group-hover:text-blue-700">{item.name}</div>
+                  <div className="text-xs text-gray-500">{item.description}</div>
                 </div>
-                <svg
-                  className="w-4 h-4 text-gray-400 group-hover:text-blue-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </Link>
@@ -145,3 +105,4 @@ export default function Settings() {
     </div>
   )
 }
+

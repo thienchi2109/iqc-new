@@ -14,9 +14,10 @@ interface CustomSelectProps {
   onChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
+  className?: string
 }
 
-export default function CustomSelect({ options, value, onChange, placeholder, disabled }: CustomSelectProps) {
+export default function CustomSelect({ options, value, onChange, placeholder, disabled, className }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isClient, setIsClient] = useState(false)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 })
@@ -63,7 +64,7 @@ export default function CustomSelect({ options, value, onChange, placeholder, di
   }, [isOpen])
 
   return (
-    <div className="relative" ref={rootRef}>
+    <div className={`relative ${className || ''}`} ref={rootRef}>
       <button
         type="button"
         ref={buttonRef}
@@ -90,7 +91,7 @@ export default function CustomSelect({ options, value, onChange, placeholder, di
         <div
           ref={menuRef}
           className="fixed z-50 bg-white shadow-lg rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm max-h-60"
-          style={{ top: menuPos.top, left: menuPos.left, width: menuPos.width }}
+          style={{ top: menuPos.top, left: menuPos.left, minWidth: menuPos.width }}
           role="listbox"
         >
           {options.map(option => (

@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { Search, Plus, Edit, Trash2, Filter } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import CustomSelect from '@/components/ui/CustomSelect'
 import { Badge } from '@/components/ui/badge'
 import {
   Table,
@@ -132,19 +132,18 @@ export default function CatalogTable<T extends { id: string; isActive?: boolean 
             {showActiveFilter && (
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-gray-400" />
-                <Select
+                <CustomSelect
+                  className="min-w-[160px]"
                   value={activeFilter === null ? 'all' : activeFilter ? 'active' : 'inactive'}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    onActiveFilterChange?.(
-                      value === 'all' ? null : value === 'active'
-                    )
+                  onChange={(value) => {
+                    onActiveFilterChange?.(value === 'all' ? null : value === 'active')
                   }}
-                >
-                  <option value="all">All</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </Select>
+                  options={[
+                    { value: 'all', label: 'All' },
+                    { value: 'active', label: 'Active' },
+                    { value: 'inactive', label: 'Inactive' },
+                  ]}
+                />
               </div>
             )}
           </div>

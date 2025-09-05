@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Select } from '@/components/ui/Select'
+import { Select } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 
 export interface QcLevel {

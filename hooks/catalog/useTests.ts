@@ -12,13 +12,16 @@ export const testKeys = {
 }
 
 // Fetch all tests
-export function useTests(filters: { isActive?: boolean } = {}) {
+export function useTests(filters: { isActive?: boolean; q?: string } = {}) {
   return useQuery({
     queryKey: testKeys.list(filters),
     queryFn: async (): Promise<Test[]> => {
       const searchParams = new URLSearchParams()
       if (filters.isActive !== undefined) {
         searchParams.set('isActive', filters.isActive.toString())
+      }
+      if (filters.q) {
+        searchParams.set('q', filters.q)
       }
       
       const response = await fetch(`${BASE_URL}?${searchParams}`)

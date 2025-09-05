@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/options'
 import { db } from '@/lib/db/client'
-import { tests } from '@/lib/db/schema'
+import { tests, units, methods } from '@/lib/db/schema'
 import { createTestSchema, updateTestSchema } from '@/lib/qc/validation'
-import { eq } from 'drizzle-orm'
+import { eq, and, or, like } from 'drizzle-orm'
 
 // GET /api/tests - Get all tests
 export async function GET(request: NextRequest) {
@@ -16,16 +16,37 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const isActive = searchParams.get('isActive')
+    const q = searchParams.get('q')?.trim()
 
-    let query = db.select().from(tests)
-    
+    let query = db
+      .select({ test: tests })
+      .from(tests)
+      .leftJoin(units, eq(tests.defaultUnitId, units.id))
+      .leftJoin(methods, eq(tests.defaultMethodId, methods.id))
+
+    const conditions: any[] = []
     if (isActive !== null) {
-      query = query.where(eq(tests.isActive, isActive === 'true')) as typeof query
+      conditions.push(eq(tests.isActive, isActive === 'true'))
+    }
+    if (q) {
+      const pattern = `%${q}%`
+      conditions.push(
+        or(
+          like(tests.code, pattern),
+          like(tests.name, pattern),
+          like(units.display, pattern),
+          like(methods.name, pattern)
+        )
+      )
     }
 
-    const allTests = await query.orderBy(tests.name)
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query
+    }
 
-    return NextResponse.json(allTests)
+    const rows = await query.orderBy(tests.name)
+
+    return NextResponse.json(rows.map((r) => r.test))
   } catch (error) {
     console.error('Error fetching tests:', error)
     return NextResponse.json(

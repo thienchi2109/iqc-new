@@ -12,21 +12,28 @@ const nextConfig = {
   },
   // App Router is now stable in Next.js 15, no experimental flag needed
   
-  // Fix Watchpack errors on Windows by ignoring system files
-  webpack: (config, { isServer }) => {
-    // Apply to both server and client
-    config.watchOptions = {
-      ...config.watchOptions,
-      ignored: [
+  // Fix Watchpack errors on Windows by ignoring system files (dev only)
+  webpack: (config, { dev }) => {
+    if (dev) {
+      const ignored = [
         '**/node_modules/**',
         '**/.git/**',
         '**/.next/**',
+        // Windows system files (match anywhere)
         '**/DumpStack.log.tmp',
         '**/pagefile.sys',
-        '**/System Volume Information/**',
         '**/hiberfil.sys',
-        '**/swapfile.sys'
+        '**/swapfile.sys',
+        // System folder
+        '**/System Volume Information/**',
       ]
+
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: Array.isArray(config.watchOptions?.ignored)
+          ? [...config.watchOptions.ignored, ...ignored]
+          : ignored,
+      }
     }
     return config
   },

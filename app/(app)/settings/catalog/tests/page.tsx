@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import CatalogTable, { Column } from '@/components/CatalogTable'
 import CatalogFormDrawer, { FormField } from '@/components/CatalogFormDrawer'
 import { useTests, useCreateTest, useUpdateTest, useDeleteTest } from '@/hooks/catalog'
@@ -11,14 +11,21 @@ export default function TestsPage() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [editingTest, setEditingTest] = useState<Test | null>(null)
   const [activeFilter, setActiveFilter] = useState<boolean | null>(null)
-
-  const { data: tests = [], isLoading } = useTests({ isActive: activeFilter ?? undefined })
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const { data: tests = [], isLoading } = useTests({ isActive: activeFilter ?? undefined, q: debouncedQuery || undefined })
   const { data: units = [] } = useUnits()
   const { data: methods = [] } = useMethods()
 
   const createMutation = useCreateTest()
   const updateMutation = useUpdateTest()
   const deleteMutation = useDeleteTest()
+
+  // Debounce search for 300ms (server-side q)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
 
   const columns: Column<Test>[] = [
     { key: 'code', label: 'Code', sortable: true },
@@ -85,7 +92,7 @@ export default function TestsPage() {
       </div>
 
       <CatalogTable
-        data={tests?.map(test => ({ ...test, isActive: test.isActive ?? true })) || []}
+        data={(tests || []).map(test => ({ ...test, isActive: test.isActive ?? true }))}
         columns={columns}
         isLoading={isLoading}
         onAdd={() => { setEditingTest(null); setIsDrawerOpen(true) }}
@@ -94,6 +101,8 @@ export default function TestsPage() {
         showActiveFilter
         onActiveFilterChange={setActiveFilter}
         activeFilter={activeFilter}
+        onSearch={setSearchQuery}
+        searchPlaceholder="Search code, name, unit, method"
       />
 
       <CatalogFormDrawer

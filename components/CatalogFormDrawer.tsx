@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { X, Save, Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/Select'
+import CustomSelect from '@/components/ui/CustomSelect'
 import { Textarea } from '@/components/ui/textarea'
 
 export interface FormField {
@@ -175,20 +175,16 @@ export default function CatalogFormDrawer({
     switch (field.type) {
       case 'select':
         return (
-          <Select
-            id={fieldId}
-            value={value}
-            onChange={(e) => handleFieldChange(field.name, e.target.value)}
+          <CustomSelect
+            value={value !== undefined && value !== null ? String(value) : ''}
+            onChange={(val) => {
+              const original = field.options?.find((o) => String(o.value) === val)
+              handleFieldChange(field.name, original ? original.value : val)
+            }}
+            options={(field.options || []).map((o) => ({ value: String(o.value), label: o.label }))}
+            placeholder={field.placeholder || `Select ${field.label}`}
             disabled={field.disabled || isSubmitting}
-            className={baseInputClasses}
-          >
-            <option value="">Select {field.label}</option>
-            {field.options?.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
+          />
         )
 
       case 'textarea':
