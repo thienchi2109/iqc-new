@@ -1,11 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { Input } from '@/components/ui/input'
 import CustomSelect from '@/components/ui/CustomSelect'
 import { Button } from '@/components/ui/button'
+
+interface User {
+  id: string
+  name: string
+  username: string
+  role: 'tech' | 'supervisor' | 'qaqc' | 'admin'
+}
 
 interface Device {
   id: string
@@ -62,12 +69,20 @@ export default function QuickEntry() {
 
   const [deviceId, setDeviceId] = useState('')
   const [testId, setTestId] = useState('')
+  const [performerId, setPerformerId] = useState(session?.user?.id || '')
   const [runAt, setRunAt] = useState(() => {
     const now = new Date()
     const offset = now.getTimezoneOffset()
     const localDate = new Date(now.getTime() - offset * 60 * 1000)
     return localDate.toISOString().slice(0, 16)
   })
+
+  // Update performerId when session changes
+  React.useEffect(() => {
+    if (session?.user?.id && !performerId) {
+      setPerformerId(session.user.id)
+    }
+  }, [session?.user?.id, performerId])
   const [levels, setLevels] = useState<LevelEntry[]>([
     { levelId: '', lotId: '', value: '', unitId: '', methodId: '', notes: '' },
   ])
@@ -91,6 +106,13 @@ export default function QuickEntry() {
   const { data: methods } = useQuery<Method[]>({
     queryKey: ['methods'],
     queryFn: () => fetch('/api/methods').then((res) => res.json()),
+  })
+
+  // Fetch users for performer selection (only for supervisors/admins)
+  const { data: users } = useQuery<User[]>({
+    queryKey: ['users'],
+    queryFn: () => fetch('/api/users').then((res) => res.json()),
+    enabled: !!(session?.user?.role && ['supervisor', 'admin'].includes(session.user.role)),
   })
 
   // Dependent data
@@ -200,7 +222,7 @@ export default function QuickEntry() {
             value: parseFloat(level.value),
             unitId: level.unitId,
             methodId: level.methodId,
-            performerId: session.user.id,
+            performerId: performerId,
             notes: level.notes,
           })
         }
@@ -209,6 +231,7 @@ export default function QuickEntry() {
       // Reset form
       setDeviceId('')
       setTestId('')
+      setPerformerId(session?.user?.id || '')
       setRunAt(() => {
         const now = new Date()
         const offset = now.getTimezoneOffset()
@@ -233,7 +256,7 @@ export default function QuickEntry() {
 
       <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-md border border-gray-200 p-6 space-y-6">
         {/* Run Information */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Thiết bị *</label>
             <CustomSelect
@@ -252,6 +275,24 @@ export default function QuickEntry() {
               options={tests?.map((test) => ({ value: test.id, label: `${test.code} - ${test.name}` })) || []}
               placeholder="Chọn xét nghiệm"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Người thực hiện *</label>
+            {session?.user?.role === 'tech' ? (
+              <Input
+                value={session.user.name || session.user.email || ''}
+                disabled
+                className="bg-gray-50"
+              />
+            ) : (
+              <CustomSelect
+                value={performerId}
+                onChange={(value) => setPerformerId(value)}
+                options={(users as User[] | undefined)?.map((user) => ({ value: user.id, label: `${user.name} (${user.username})` })) || []}
+                placeholder="Chọn người thực hiện"
+              />
+            )}
           </div>
 
           <div>
@@ -363,6 +404,7 @@ export default function QuickEntry() {
             onClick={() => {
               setDeviceId('')
               setTestId('')
+              setPerformerId(session?.user?.id || '')
               setRunAt(() => {
                 const now = new Date()
                 const offset = now.getTimezoneOffset()

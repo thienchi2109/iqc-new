@@ -6,11 +6,11 @@ import CatalogFormDrawer, { FormField } from '@/components/CatalogFormDrawer'
 import { useQcLimits, useCreateQcLimit, useUpdateQcLimit, useDeleteQcLimit } from '@/hooks/catalog'
 import CustomSelect from '@/components/ui/CustomSelect'
 import { useTests, useDevices, useQcLevels, useQcLots } from '@/hooks/catalog'
-import { QcLimit } from '@/lib/db/schema'
 
 export default function QcLimitsPage() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-  const [editingLimit, setEditingLimit] = useState<QcLimit | null>(null)
+  const [editingLimit, setEditingLimit] = useState<any>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const [filters, setFilters] = useState({
     testId: '',
     deviceId: '',
@@ -28,45 +28,38 @@ export default function QcLimitsPage() {
   const updateMutation = useUpdateQcLimit()
   const deleteMutation = useDeleteQcLimit()
 
-  const columns: Column<QcLimit>[] = [
+  // Filter limits based on search query - now works with pretty fields
+  const filteredLimits = limits.filter((limit: any) => {
+    if (!searchQuery) return true
+    const query = searchQuery.toLowerCase()
+    return (
+      limit.test?.toLowerCase().includes(query) ||
+      limit.device?.toLowerCase().includes(query) ||
+      limit.level?.toLowerCase().includes(query) ||
+      limit.lot?.toLowerCase().includes(query) ||
+      limit.source?.toLowerCase().includes(query)
+    )
+  })
+
+  const columns: Column<any>[] = [
+    { key: 'test', label: 'Test' },
+    { key: 'device', label: 'Device' },
+    { key: 'level', label: 'Level' },
+    { key: 'lot', label: 'Lot' },
     { 
-      key: 'testId', 
-      label: 'Test',
-      render: (testId: string) => {
-        const test = tests.find(t => t.id === testId)
-        return test ? `${test.code}` : testId
-      }
+      key: 'mean', 
+      label: 'Mean',
+      render: (mean: number) => mean?.toFixed(4) || '-'
     },
     { 
-      key: 'deviceId', 
-      label: 'Device',
-      render: (deviceId: string) => {
-        const device = devices.find(d => d.id === deviceId)
-        return device ? device.code : deviceId
-      }
+      key: 'sd', 
+      label: 'SD',
+      render: (sd: number) => sd?.toFixed(4) || '-'
     },
-    { 
-      key: 'levelId', 
-      label: 'Level',
-      render: (levelId: string) => {
-        const level = levels.find(l => l.id === levelId)
-        return level ? level.level : levelId
-      }
-    },
-    { 
-      key: 'lotId', 
-      label: 'Lot',
-      render: (lotId: string) => {
-        const lot = lots.find(l => l.id === lotId)
-        return lot ? lot.lotCode : lotId
-      }
-    },
-    { key: 'mean', label: 'Mean' },
-    { key: 'sd', label: 'SD' },
     { 
       key: 'cv', 
       label: 'CV (%)',
-      render: (cv: string) => `${cv}%`
+      render: (cv: number) => cv ? `${cv.toFixed(2)}%` : '-'
     },
     { key: 'source', label: 'Source' },
   ]
@@ -200,7 +193,12 @@ export default function QcLimitsPage() {
           className="min-w-[160px]"
           value={filters.levelId}
           onChange={(value) => setFilters(prev => ({ ...prev, levelId: value }))}
-          options={[{ value: '', label: 'All Levels' }, ...levels.map(level => ({ value: level.id, label: level.level }))]}
+          options={[
+            { value: '', label: 'All Levels' },
+            { value: 'L1', label: 'L1' },
+            { value: 'L2', label: 'L2' },
+            { value: 'L3', label: 'L3' }
+          ]}
           placeholder="All Levels"
         />
 
@@ -214,12 +212,14 @@ export default function QcLimitsPage() {
       </div>
 
       <CatalogTable
-        data={limits}
+        data={filteredLimits}
         columns={columns}
         isLoading={isLoading}
         onAdd={() => { setEditingLimit(null); setIsDrawerOpen(true) }}
         onEdit={(limit) => { setEditingLimit(limit); setIsDrawerOpen(true) }}
         onDelete={(limit) => deleteMutation.mutate(limit.id)}
+        onSearch={setSearchQuery}
+        searchPlaceholder="Search by test, device, level, lot, or source..."
         emptyMessage="No QC limits found. Configure your first QC limit to get started."
       />
 

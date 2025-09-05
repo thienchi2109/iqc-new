@@ -105,7 +105,7 @@ export const qcRuns = pgTable('qc_runs', {
   value: numeric('value', { precision: 14, scale: 4 }).notNull(),
   unitId: uuid('unit_id').references(() => units.id),
   methodId: uuid('method_id').references(() => methods.id),
-  performerId: uuid('performer_id').references(() => users.id),
+  performerId: uuid('performer_id_user_id').references(() => users.id, { onDelete: 'set null' }),
   status: text('status').$type<'pending' | 'accepted' | 'rejected'>().default('pending'),
   z: numeric('z', { precision: 10, scale: 3 }), // Z-score computed server-side
   side: text('side').$type<'above' | 'below' | 'on'>(),

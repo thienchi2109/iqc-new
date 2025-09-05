@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { withConfigAudit } from '@/lib/auth/withAudit'
 import { withAuth } from '@/lib/auth/middleware'
 import { db } from '@/lib/db/client'
-import { qcLimits } from '@/lib/db/schema'
+import { qcLimits, tests, devices, qcLevels, qcLots } from '@/lib/db/schema'
 import { createQcLimitSchema, updateQcLimitSchema } from '@/lib/qc/validation'
 import { AuditLogger } from '@/lib/audit/logger'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 
 // POST /api/qc/limits - Create or update QC limits
 export const POST = withConfigAudit(
@@ -123,7 +123,7 @@ export const POST = withConfigAudit(
   { permission: 'qc-limits:write' }
 )
 
-// GET /api/qc/limits - Get QC limits
+// GET /api/qc/limits - Get QC limits with pretty/joined fields
 export const GET = withAuth(
   async (request: NextRequest, user) => {
     try {
@@ -133,7 +133,34 @@ export const GET = withAuth(
       const lotId = searchParams.get('lotId')
       const deviceId = searchParams.get('deviceId')
 
-      let query = db.select().from(qcLimits)
+      // Query with joins to return pretty fields instead of raw UUIDs
+      let query = db
+        .select({
+          id: qcLimits.id,
+          // Pretty fields from joins
+          test: tests.code,
+          testName: tests.name,
+          device: devices.code,
+          deviceName: devices.name,
+          level: qcLevels.level,
+          lot: qcLots.lotCode,
+          // Statistical data
+          mean: qcLimits.mean,
+          sd: qcLimits.sd,
+          cv: qcLimits.cv,
+          source: qcLimits.source,
+          createdBy: qcLimits.createdBy,
+          // Keep original IDs for form operations
+          testId: qcLimits.testId,
+          deviceId: qcLimits.deviceId,
+          levelId: qcLimits.levelId,
+          lotId: qcLimits.lotId,
+        })
+        .from(qcLimits)
+        .leftJoin(tests, eq(qcLimits.testId, tests.id))
+        .leftJoin(devices, eq(qcLimits.deviceId, devices.id))
+        .leftJoin(qcLevels, eq(qcLimits.levelId, qcLevels.id))
+        .leftJoin(qcLots, eq(qcLimits.lotId, qcLots.id))
 
       // Apply filters
       const conditions = []
@@ -146,9 +173,17 @@ export const GET = withAuth(
         query = query.where(and(...conditions)) as typeof query
       }
 
-      const limits = await query
+      const limits = await query.orderBy(tests.code, qcLevels.level, qcLots.lotCode)
 
-      return NextResponse.json(limits)
+      // Convert numeric fields to numbers for frontend consumption
+      const processedLimits = limits.map(limit => ({
+        ...limit,
+        mean: limit.mean ? Number(limit.mean) : null,
+        sd: limit.sd ? Number(limit.sd) : null,
+        cv: limit.cv ? Number(limit.cv) : null,
+      }))
+
+      return NextResponse.json(processedLimits)
     } catch (error) {
       console.error('Error fetching QC limits:', error)
       return NextResponse.json(

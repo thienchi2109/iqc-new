@@ -148,6 +148,22 @@ export const POST = withAuth(
         )
       }
 
+      // For supervisors/admins, validate that performer exists if overriding
+      if (['supervisor', 'admin'].includes(user.role) && runData.performerId !== user.id) {
+        const [performer] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.id, runData.performerId))
+          .limit(1)
+
+        if (!performer) {
+          return NextResponse.json(
+            { error: 'Invalid performer ID provided' },
+            { status: 400 }
+          )
+        }
+      }
+
       // Start transaction
       const result = await db.transaction(async (tx) => {
         // 1. Check lot expiration
