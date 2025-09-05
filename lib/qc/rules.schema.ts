@@ -48,13 +48,17 @@ export const DEFAULT_ENHANCED_RULES: RulesConfigSchema = {
       enabled: true, 
       severity: 'fail',
       required_levels: '1',
-      scope: 'within_level'
+      scope: 'within_level',
+      within_run_across_levels: false,
+      across_runs: false
     },
     '1-2s': { 
       enabled: true, 
       severity: 'warn',
       required_levels: '1',
-      scope: 'within_level'
+      scope: 'within_level',
+      within_run_across_levels: false,
+      across_runs: false
     },
     
     // Consecutive point rules
@@ -73,6 +77,8 @@ export const DEFAULT_ENHANCED_RULES: RulesConfigSchema = {
       severity: 'fail',
       required_levels: '1',
       scope: 'within_level',
+      within_run_across_levels: false,
+      across_runs: false,
       threshold_sd: 1, 
       window: 4 
     },
@@ -81,6 +87,8 @@ export const DEFAULT_ENHANCED_RULES: RulesConfigSchema = {
       severity: 'fail',
       required_levels: '1',
       scope: 'within_level',
+      within_run_across_levels: false,
+      across_runs: false,
       threshold_sd: 1, 
       window: 3 
     },
@@ -102,6 +110,8 @@ export const DEFAULT_ENHANCED_RULES: RulesConfigSchema = {
       severity: 'fail',
       required_levels: '1',
       scope: 'within_level',
+      within_run_across_levels: false,
+      across_runs: false,
       n: 10 
     },
     '6x': { 
@@ -109,6 +119,8 @@ export const DEFAULT_ENHANCED_RULES: RulesConfigSchema = {
       severity: 'fail',
       required_levels: '1',
       scope: 'within_level',
+      within_run_across_levels: false,
+      across_runs: false,
       n: 6 
     },
     
@@ -118,6 +130,8 @@ export const DEFAULT_ENHANCED_RULES: RulesConfigSchema = {
       severity: 'fail',
       required_levels: '1',
       scope: 'across_levels_or_time',
+      within_run_across_levels: false,
+      across_runs: true,
       n_set: [8, 9, 10, 12],
       window: 24 // Extended window for mixed chronological sequence
     },
@@ -128,6 +142,8 @@ export const DEFAULT_ENHANCED_RULES: RulesConfigSchema = {
       severity: 'fail',
       required_levels: '1',
       scope: 'within_level',
+      within_run_across_levels: false,
+      across_runs: false,
       n: 7 
     },
     
@@ -137,6 +153,8 @@ export const DEFAULT_ENHANCED_RULES: RulesConfigSchema = {
       severity: 'fail',
       required_levels: '3',
       scope: 'across_levels',
+      within_run_across_levels: true,
+      across_runs: true,
       threshold_sd: 2, 
       window: 3 
     }

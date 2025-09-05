@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/ui/Input'
 import CustomSelect from '@/components/ui/CustomSelect'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/ui/Button'
 
 interface ReportData {
   device: string

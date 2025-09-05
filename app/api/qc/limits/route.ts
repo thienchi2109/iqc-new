@@ -3,7 +3,7 @@ import { withConfigAudit } from '@/lib/auth/withAudit'
 import { withAuth } from '@/lib/auth/middleware'
 import { db } from '@/lib/db/client'
 import { qcLimits } from '@/lib/db/schema'
-import { createQcLimitSchema } from '@/lib/qc/validation'
+import { createQcLimitSchema, updateQcLimitSchema } from '@/lib/qc/validation'
 import { AuditLogger } from '@/lib/audit/logger'
 import { eq, and } from 'drizzle-orm'
 
@@ -158,4 +158,146 @@ export const GET = withAuth(
     }
   },
   { permission: 'qc-limits:read' }
+)
+
+// PUT /api/qc/limits?id=uuid - Update specific QC limit
+export const PUT = withConfigAudit(
+  async (request: NextRequest, user) => {
+    try {
+      const { searchParams } = new URL(request.url)
+      const limitId = searchParams.get('id')
+      
+      if (!limitId) {
+        return NextResponse.json({ error: 'QC Limit ID required' }, { status: 400 })
+      }
+
+      const body = await request.json()
+      const limitData = updateQcLimitSchema.parse(body)
+
+      // Get existing limit for audit trail first
+      const [existingLimit] = await db
+        .select()
+        .from(qcLimits)
+        .where(eq(qcLimits.id, limitId))
+        .limit(1)
+
+      if (!existingLimit) {
+        return NextResponse.json({ error: 'QC Limit not found' }, { status: 404 })
+      }
+
+      // Merge with existing values to ensure we have complete data for CV calculation
+      const updatedMean = limitData.mean ?? parseFloat(existingLimit.mean)
+      const updatedSd = limitData.sd ?? parseFloat(existingLimit.sd)
+      const updatedSource = limitData.source ?? existingLimit.source
+
+      // Calculate CV automatically: (sd/mean) * 100
+      const cv = (updatedSd / updatedMean) * 100
+
+      const oldValues = {
+        mean: existingLimit.mean,
+        sd: existingLimit.sd,
+        cv: existingLimit.cv,
+        source: existingLimit.source,
+      }
+      
+      const newValues: Record<string, any> = {
+        mean: updatedMean.toString(),
+        sd: updatedSd.toString(),
+        cv: cv.toFixed(2),
+        source: updatedSource,
+      }
+
+      const [updatedLimit] = await db
+        .update(qcLimits)
+        .set({
+          ...newValues,
+          createdBy: user.id,
+        })
+        .where(eq(qcLimits.id, limitId))
+        .returning()
+
+      // Log the update
+      await AuditLogger.logUpdate(
+        user,
+        'qc_limits',
+        limitId,
+        oldValues,
+        newValues,
+        {
+          testId: existingLimit.testId,
+          levelId: existingLimit.levelId,
+          lotId: existingLimit.lotId,
+          deviceId: existingLimit.deviceId,
+        }
+      )
+
+      return NextResponse.json(updatedLimit)
+    } catch (error) {
+      console.error('Error updating QC limit:', error)
+      if (error instanceof Error) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      )
+    }
+  },
+  { permission: 'qc-limits:write' }
+)
+
+// DELETE /api/qc/limits?id=uuid - Delete QC limit
+export const DELETE = withConfigAudit(
+  async (request: NextRequest, user) => {
+    try {
+      const { searchParams } = new URL(request.url)
+      const limitId = searchParams.get('id')
+      
+      if (!limitId) {
+        return NextResponse.json({ error: 'QC Limit ID required' }, { status: 400 })
+      }
+
+      // Get existing limit for audit trail
+      const [existingLimit] = await db
+        .select()
+        .from(qcLimits)
+        .where(eq(qcLimits.id, limitId))
+        .limit(1)
+
+      if (!existingLimit) {
+        return NextResponse.json({ error: 'QC Limit not found' }, { status: 404 })
+      }
+
+      const [deletedLimit] = await db
+        .delete(qcLimits)
+        .where(eq(qcLimits.id, limitId))
+        .returning()
+
+      // Log the deletion
+      await AuditLogger.logDelete(
+        user,
+        'qc_limits',
+        limitId,
+        existingLimit,
+        {
+          testId: existingLimit.testId,
+          levelId: existingLimit.levelId,
+          lotId: existingLimit.lotId,
+          deviceId: existingLimit.deviceId,
+        }
+      )
+
+      return NextResponse.json({ success: true, message: 'QC Limit deleted' })
+    } catch (error) {
+      console.error('Error deleting QC limit:', error)
+      if (error instanceof Error && error.message.includes('foreign key')) {
+        return NextResponse.json({ error: 'Cannot delete QC limit - it is being used by QC runs' }, { status: 400 })
+      }
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      )
+    }
+  },
+  { permission: 'qc-limits:write' }
 )

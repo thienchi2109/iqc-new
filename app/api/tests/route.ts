@@ -68,3 +68,90 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+// PUT /api/tests?id=uuid - Update test
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Only admin and qaqc can update tests
+    if (!['admin', 'qaqc'].includes(session.user.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const testId = searchParams.get('id')
+    
+    if (!testId) {
+      return NextResponse.json({ error: 'Test ID required' }, { status: 400 })
+    }
+
+    const body = await request.json()
+    const testData = updateTestSchema.parse(body)
+
+    const [updatedTest] = await db
+      .update(tests)
+      .set(testData)
+      .where(eq(tests.id, testId))
+      .returning()
+
+    if (!updatedTest) {
+      return NextResponse.json({ error: 'Test not found' }, { status: 404 })
+    }
+
+    return NextResponse.json(updatedTest)
+  } catch (error) {
+    console.error('Error updating test:', error)
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE /api/tests?id=uuid - Soft delete test (set isActive = false)
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Only admin and qaqc can delete tests
+    if (!['admin', 'qaqc'].includes(session.user.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const testId = searchParams.get('id')
+    
+    if (!testId) {
+      return NextResponse.json({ error: 'Test ID required' }, { status: 400 })
+    }
+
+    // Soft delete by setting isActive = false
+    const [deletedTest] = await db
+      .update(tests)
+      .set({ isActive: false })
+      .where(eq(tests.id, testId))
+      .returning()
+
+    if (!deletedTest) {
+      return NextResponse.json({ error: 'Test not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({ success: true, message: 'Test deactivated' })
+  } catch (error) {
+    console.error('Error deleting test:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}

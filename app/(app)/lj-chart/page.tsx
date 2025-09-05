@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Brush } from 'recharts'
 import CustomSelect from '@/components/ui/CustomSelect'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/ui/Input'
 
 interface ChartDataPoint {
   date: string

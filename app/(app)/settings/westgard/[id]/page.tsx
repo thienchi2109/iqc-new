@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter, useParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { type RuleConfigSchema } from '@/lib/qc/rules.schema'
@@ -28,13 +28,17 @@ const DEFAULT_RULES: Record<string, EnhancedRuleConfig> = {
     enabled: true, 
     severity: 'fail',
     required_levels: '1',
-    scope: 'within_level'
+    scope: 'within_level',
+    within_run_across_levels: false,
+    across_runs: false
   },
   '1-2s': { 
     enabled: true, 
     severity: 'warn',
     required_levels: '1',
-    scope: 'within_level'
+    scope: 'within_level',
+    within_run_across_levels: false,
+    across_runs: false
   },
   '2-2s': { 
     enabled: true, 
@@ -59,6 +63,8 @@ const DEFAULT_RULES: Record<string, EnhancedRuleConfig> = {
     severity: 'fail', 
     required_levels: '1',
     scope: 'within_level',
+    within_run_across_levels: false,
+    across_runs: false,
     threshold_sd: 1, 
     window: 4 
   },
@@ -67,6 +73,8 @@ const DEFAULT_RULES: Record<string, EnhancedRuleConfig> = {
     severity: 'fail', 
     required_levels: '1',
     scope: 'within_level',
+    within_run_across_levels: false,
+    across_runs: false,
     n: 10 
   },
   '7T': { 
@@ -74,6 +82,8 @@ const DEFAULT_RULES: Record<string, EnhancedRuleConfig> = {
     severity: 'fail', 
     required_levels: '1',
     scope: 'within_level',
+    within_run_across_levels: false,
+    across_runs: false,
     n: 7 
   },
   'Nx_ext': {
@@ -81,6 +91,8 @@ const DEFAULT_RULES: Record<string, EnhancedRuleConfig> = {
     severity: 'fail',
     required_levels: '1',
     scope: 'across_levels_or_time',
+    within_run_across_levels: false,
+    across_runs: true,
     n_set: [8, 9, 10, 12],
     window: 24
   },
@@ -89,6 +101,8 @@ const DEFAULT_RULES: Record<string, EnhancedRuleConfig> = {
     severity: 'fail', 
     required_levels: '3',
     scope: 'across_levels',
+    within_run_across_levels: true,
+    across_runs: true,
     threshold_sd: 2, 
     window: 3 
   },
@@ -97,6 +111,8 @@ const DEFAULT_RULES: Record<string, EnhancedRuleConfig> = {
     severity: 'fail', 
     required_levels: '1',
     scope: 'within_level',
+    within_run_across_levels: false,
+    across_runs: false,
     threshold_sd: 1, 
     window: 3 
   },
@@ -105,6 +121,8 @@ const DEFAULT_RULES: Record<string, EnhancedRuleConfig> = {
     severity: 'fail', 
     required_levels: '1',
     scope: 'within_level',
+    within_run_across_levels: false,
+    across_runs: false,
     n: 6 
   }
 }

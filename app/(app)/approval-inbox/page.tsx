@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/ui/Button'
 import CustomSelect from '@/components/ui/CustomSelect'
-import { Select } from '@/components/ui/select'
+import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -263,8 +263,8 @@ export default function ApprovalInboxPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Hộp thư duyệt QC</h1>
-        <p className="text-gray-600 mt-1">Xem xét và duyệt/Từ chối các lần chạy QC đang chờ. Các lần chạy &quot;không đạt&quot; cần CAPA hoặc lần chạy đạt sau đó trước khi duyệt.</p>
+        <h1 className="text-3xl font-bold text-gray-900">Duyệt các kết quả QC</h1>
+        <p className="text-gray-600 mt-1">Xem xét và duyệt hoặc Từ chối các lần chạy QC đang chờ. Các lần chạy &quot;không đạt&quot; cần CAPA hoặc lần chạy đạt sau đó trước khi duyệt.</p>
       </div>
 
       {/* Filters */}

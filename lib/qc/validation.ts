@@ -48,11 +48,15 @@ export const createUnitSchema = z.object({
   display: z.string().min(1).max(50),
 })
 
+export const updateUnitSchema = createUnitSchema
+
 // Method validation schemas
 export const createMethodSchema = z.object({
   code: z.string().min(1).max(50),
   name: z.string().min(1).max(200),
 })
+
+export const updateMethodSchema = createMethodSchema
 
 // QC Level validation schemas
 export const qcLevelEnum = z.enum(['L1', 'L2', 'L3'])
@@ -62,6 +66,8 @@ export const createQcLevelSchema = z.object({
   level: qcLevelEnum,
   material: z.string().max(200).optional(),
 })
+
+export const updateQcLevelSchema = createQcLevelSchema.partial()
 
 // QC Lot validation schemas
 export const createQcLotSchema = z.object({
@@ -80,10 +86,12 @@ export const createQcLotSchema = z.object({
   notes: z.string().max(500).optional(),
 })
 
+export const updateQcLotSchema = createQcLotSchema.partial()
+
 // QC Limits validation schemas
 export const qcLimitSourceSchema = z.enum(['manufacturer', 'lab'])
 
-export const createQcLimitSchema = z.object({
+const baseQcLimitSchema = z.object({
   testId: uuidSchema,
   levelId: uuidSchema,
   lotId: uuidSchema,
@@ -91,12 +99,16 @@ export const createQcLimitSchema = z.object({
   mean: z.number(),
   sd: z.number().positive(),
   source: qcLimitSourceSchema,
-}).refine((data) => {
+})
+
+export const createQcLimitSchema = baseQcLimitSchema.refine((data) => {
   // CV is auto-calculated: sd/mean*100
   return data.sd > 0 && data.mean !== 0
 }, {
   message: 'SD must be positive and mean cannot be zero',
 })
+
+export const updateQcLimitSchema = baseQcLimitSchema.partial().omit({ testId: true, levelId: true, lotId: true, deviceId: true })
 
 // Run Group validation schemas
 export const createRunGroupSchema = z.object({
@@ -198,10 +210,8 @@ export const qcRunFiltersSchema = z.object({
   lotId: uuidSchema.optional(),
   status: qcRunStatusSchema.optional(),
   performerId: uuidSchema.optional(),
-  // Add approval workflow filters
   approvalState: z.enum(['pending', 'approved', 'rejected']).optional(),
   autoResult: z.enum(['pass', 'warn', 'fail']).optional(),
-  // Text search filters (code/labels)
   deviceCode: z.string().optional(),
   testCode: z.string().optional(),
   level: z.string().optional(),
@@ -262,18 +272,23 @@ export const schemas = {
   },
   unit: {
     create: createUnitSchema,
+    update: updateUnitSchema,
   },
   method: {
     create: createMethodSchema,
+    update: updateMethodSchema,
   },
   qcLevel: {
     create: createQcLevelSchema,
+    update: updateQcLevelSchema,
   },
   qcLot: {
     create: createQcLotSchema,
+    update: updateQcLotSchema,
   },
   qcLimit: {
     create: createQcLimitSchema,
+    update: updateQcLimitSchema,
   },
   runGroup: {
     create: createRunGroupSchema,
