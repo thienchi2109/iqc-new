@@ -19,17 +19,19 @@ process.env.NODE_ENV = 'test';
 process.env.NEXTAUTH_SECRET = 'test-secret';
 process.env.NEXTAUTH_URL = 'http://localhost:3000';
 
-// Mock Next.js specific globals
-Object.defineProperty(window, 'location', {
-  value: {
-    href: 'http://localhost:3000',
-    origin: 'http://localhost:3000',
-    pathname: '/',
-    search: '',
-    hash: '',
-  },
-  writable: true,
-});
+// Mock Next.js specific globals (only in browser environment)
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'location', {
+    value: {
+      href: 'http://localhost:3000',
+      origin: 'http://localhost:3000',
+      pathname: '/',
+      search: '',
+      hash: '',
+    },
+    writable: true,
+  });
+}
 
 // Global test utilities
 global.createMockUser = (overrides = {}) => ({

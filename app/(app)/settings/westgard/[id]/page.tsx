@@ -7,57 +7,117 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
+import { type RuleConfigSchema } from '@/lib/qc/rules.schema'
 
-interface RuleConfig {
-  enabled: boolean
-  severity?: 'warn' | 'fail'
-  threshold_sd?: number
-  window?: number
-  n?: number
-  within_run_across_levels?: boolean
-  across_runs?: boolean
-  delta_sd?: number
-}
+interface EnhancedRuleConfig extends RuleConfigSchema {}
 
 interface RuleProfile {
   id: string
   name: string
   enabledRules: {
     window_size_default: number
-    rules: Record<string, RuleConfig>
+    rules: Record<string, EnhancedRuleConfig>
   }
   createdBy: string
   createdAt: string
   updatedAt: string
 }
 
-const DEFAULT_RULES: Record<string, RuleConfig> = {
-  '1-3s': { enabled: true, severity: 'fail' },
-  '1-2s': { enabled: true, severity: 'warn' },
-  '2-2s': { enabled: true, severity: 'fail' },
+const DEFAULT_RULES: Record<string, EnhancedRuleConfig> = {
+  '1-3s': { 
+    enabled: true, 
+    severity: 'fail',
+    required_levels: '1',
+    scope: 'within_level'
+  },
+  '1-2s': { 
+    enabled: true, 
+    severity: 'warn',
+    required_levels: '1',
+    scope: 'within_level'
+  },
+  '2-2s': { 
+    enabled: true, 
+    severity: 'fail',
+    required_levels: '1',
+    scope: 'either',
+    within_run_across_levels: true,
+    across_runs: true,
+    threshold_sd: 2
+  },
   'R-4s': { 
     enabled: true, 
     severity: 'fail',
+    required_levels: '2',
+    scope: 'across_levels',
     within_run_across_levels: true, 
     across_runs: true, 
     delta_sd: 4 
   },
-  '4-1s': { enabled: true, severity: 'fail', threshold_sd: 1, window: 4 },
-  '10x': { enabled: true, severity: 'fail', n: 10 },
-  '7T': { enabled: true, severity: 'fail', n: 7 },
-  '2of3-2s': { enabled: false, severity: 'fail', threshold_sd: 2, window: 3 },
-  '3-1s': { enabled: false, severity: 'fail', threshold_sd: 1, window: 3 },
-  '6x': { enabled: false, severity: 'fail', n: 6 }
+  '4-1s': { 
+    enabled: true, 
+    severity: 'fail', 
+    required_levels: '1',
+    scope: 'within_level',
+    threshold_sd: 1, 
+    window: 4 
+  },
+  '10x': { 
+    enabled: true, 
+    severity: 'fail', 
+    required_levels: '1',
+    scope: 'within_level',
+    n: 10 
+  },
+  '7T': { 
+    enabled: true, 
+    severity: 'fail', 
+    required_levels: '1',
+    scope: 'within_level',
+    n: 7 
+  },
+  'Nx_ext': {
+    enabled: true,
+    severity: 'fail',
+    required_levels: '1',
+    scope: 'across_levels_or_time',
+    n_set: [8, 9, 10, 12],
+    window: 24
+  },
+  '2of3-2s': { 
+    enabled: false, 
+    severity: 'fail', 
+    required_levels: '3',
+    scope: 'across_levels',
+    threshold_sd: 2, 
+    window: 3 
+  },
+  '3-1s': { 
+    enabled: false, 
+    severity: 'fail', 
+    required_levels: '1',
+    scope: 'within_level',
+    threshold_sd: 1, 
+    window: 3 
+  },
+  '6x': { 
+    enabled: false, 
+    severity: 'fail', 
+    required_levels: '1',
+    scope: 'within_level',
+    n: 6 
+  }
 }
 
 const RULE_DESCRIPTIONS: Record<string, string> = {
   '1-3s': 'Một điểm ngoài ±3SD',
   '1-2s': 'Một điểm ngoài ±2SD', 
-  '2-2s': 'Hai điểm liên tiếp cùng phía ngoài ±2SD',
-  'R-4s': 'Phạm vi giữa các mức vượt quá 4SD',
+  '2-2s': 'Hai điểm liên tiếp cùng phía ngoài ±2SD (trong cùng mức hoặc giữa các mức)',
+  'R-4s': 'Phạm vi giữa các mức vượt quá SD cấu hình',
   '4-1s': 'Bốn điểm liên tiếp cùng phía ngoài ±1SD',
   '10x': 'Mười điểm liên tiếp cùng phía với giá trị trung bình',
   '7T': 'Bảy điểm liên tiếp có xu hướng tăng hoặc giảm',
+  'Nx_ext': 'Quy tắc mở rộng Nx với bộ giá trị n có thể cấu hình [8,9,10,12]',
   '2of3-2s': 'Hai trong ba mức ngoài ±2SD',
   '3-1s': 'Ba điểm liên tiếp cùng phía ngoài ±1SD',
   '6x': 'Sáu điểm liên tiếp cùng phía với giá trị trung bình'
@@ -103,8 +163,8 @@ function RuleEditor({
   onChange 
 }: { 
   ruleCode: string
-  rule: RuleConfig
-  onChange: (newRule: RuleConfig) => void 
+  rule: EnhancedRuleConfig
+  onChange: (newRule: EnhancedRuleConfig) => void 
 }) {
   return (
     <div className="border border-gray-200 rounded-lg p-4 space-y-3">
@@ -125,63 +185,117 @@ function RuleEditor({
       </div>
 
       {rule.enabled && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-gray-100">
-          {/* Severity */}
-          <div>
-            <Label className="text-xs">Mức độ nghiêm trọng</Label>
-            <select
-              value={rule.severity || 'fail'}
-              onChange={(e) => onChange({ ...rule, severity: e.target.value as 'warn' | 'fail' })}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1 text-sm focus:border-blue-500 focus:ring-blue-500"
-            >
-              <option value="warn">Cảnh báo</option>
-              <option value="fail">Lỗi</option>
-            </select>
+        <div className="space-y-4">
+          {/* First Row: Basic Configuration */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-2 border-t border-gray-100">
+            {/* Severity */}
+            <div>
+              <Label className="text-xs">Mức độ nghiêm trọng</Label>
+              <select
+                value={rule.severity || 'fail'}
+                onChange={(e) => onChange({ ...rule, severity: e.target.value as 'warn' | 'fail' })}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1 text-sm focus:border-blue-500 focus:ring-blue-500"
+              >
+                <option value="warn">Cảnh báo</option>
+                <option value="fail">Lỗi</option>
+              </select>
+            </div>
+
+            {/* Required Levels */}
+            <div>
+              <Label className="text-xs">Yêu cầu số mức 📝</Label>
+              <select
+                value={rule.required_levels || '1'}
+                onChange={(e) => onChange({ ...rule, required_levels: e.target.value as '1' | '2' | '3' })}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1 text-sm focus:border-blue-500 focus:ring-blue-500"
+                title="Số mức tối thiểu cần thiết để áp dụng quy tắc này"
+              >
+                <option value="1">1 mức</option>
+                <option value="2">2 mức</option>
+                <option value="3">3 mức</option>
+              </select>
+            </div>
+
+            {/* Scope */}
+            <div>
+              <Label className="text-xs">Phạm vi áp dụng 📝</Label>
+              <select
+                value={rule.scope || 'within_level'}
+                onChange={(e) => onChange({ ...rule, scope: e.target.value as 'within_level' | 'across_levels' | 'either' | 'across_levels_or_time' })}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1 text-sm focus:border-blue-500 focus:ring-blue-500"
+                title="Xác định quy tắc hoạt động trong cùng mức hay giữa các mức"
+              >
+                <option value="within_level">Trong cùng mức</option>
+                <option value="across_levels">Giữa các mức</option>
+                <option value="either">Cả hai</option>
+                <option value="across_levels_or_time">Giữa mức hoặc thời gian</option>
+              </select>
+            </div>
+
+            {/* Cross-run behavior for applicable rules */}
+            {(ruleCode === '2-2s' || ruleCode === 'R-4s') && (
+              <div className="flex items-center pt-6">
+                <label className="flex items-center text-sm">
+                  <input
+                    type="checkbox"
+                    checked={rule.within_run_across_levels || false}
+                    onChange={(e) => onChange({ ...rule, within_run_across_levels: e.target.checked })}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    title="Cho phép phát hiện quy tắc giữa các mức trong cùng lần chạy"
+                  />
+                  <span className="ml-2">Giữa mức trong chạy</span>
+                </label>
+              </div>
+            )}
           </div>
 
-          {/* Rule-specific parameters */}
-          {(ruleCode === '4-1s' || ruleCode === '3-1s' || ruleCode === '2of3-2s') && (
-            <div>
-              <Label className="text-xs">Ngưỡng SD</Label>
-              <Input
-                type="number"
-                value={rule.threshold_sd || 1}
-                onChange={(e) => onChange({ ...rule, threshold_sd: parseFloat(e.target.value) })}
-                step="0.1"
-                min="0.1"
-                className="text-sm"
-              />
-            </div>
-          )}
+          {/* Second Row: Rule-specific parameters */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {/* Threshold SD */}
+            {(ruleCode === '4-1s' || ruleCode === '3-1s' || ruleCode === '2of3-2s' || ruleCode === '2-2s') && (
+              <div>
+                <Label className="text-xs">Ngưỡng SD</Label>
+                <Input
+                  type="number"
+                  value={rule.threshold_sd || (ruleCode === '2-2s' ? 2 : 1)}
+                  onChange={(e) => onChange({ ...rule, threshold_sd: parseFloat(e.target.value) })}
+                  step="0.1"
+                  min="0.1"
+                  className="text-sm"
+                />
+              </div>
+            )}
 
-          {(ruleCode === '4-1s' || ruleCode === '3-1s' || ruleCode === '2of3-2s') && (
-            <div>
-              <Label className="text-xs">Cửa sổ</Label>
-              <Input
-                type="number"
-                value={rule.window || (ruleCode === '4-1s' ? 4 : 3)}
-                onChange={(e) => onChange({ ...rule, window: parseInt(e.target.value) })}
-                min="1"
-                className="text-sm"
-              />
-            </div>
-          )}
+            {/* Window */}
+            {(ruleCode === '4-1s' || ruleCode === '3-1s' || ruleCode === '2of3-2s' || ruleCode === '2-2s' || ruleCode === 'Nx_ext') && (
+              <div>
+                <Label className="text-xs">Cửa sổ {ruleCode === 'Nx_ext' ? '(mở rộng)' : ''}</Label>
+                <Input
+                  type="number"
+                  value={rule.window || (ruleCode === '4-1s' ? 4 : ruleCode === '3-1s' ? 3 : ruleCode === 'Nx_ext' ? 24 : 2)}
+                  onChange={(e) => onChange({ ...rule, window: parseInt(e.target.value) })}
+                  min="1"
+                  className="text-sm"
+                />
+              </div>
+            )}
 
-          {(ruleCode === '10x' || ruleCode === '6x' || ruleCode === '7T') && (
-            <div>
-              <Label className="text-xs">Số điểm</Label>
-              <Input
-                type="number"
-                value={rule.n || (ruleCode === '10x' ? 10 : ruleCode === '7T' ? 7 : 6)}
-                onChange={(e) => onChange({ ...rule, n: parseInt(e.target.value) })}
-                min="1"
-                className="text-sm"
-              />
-            </div>
-          )}
+            {/* N (single value) */}
+            {(ruleCode === '10x' || ruleCode === '6x' || ruleCode === '7T') && (
+              <div>
+                <Label className="text-xs">Số điểm</Label>
+                <Input
+                  type="number"
+                  value={rule.n || (ruleCode === '10x' ? 10 : ruleCode === '7T' ? 7 : 6)}
+                  onChange={(e) => onChange({ ...rule, n: parseInt(e.target.value) })}
+                  min="1"
+                  className="text-sm"
+                />
+              </div>
+            )}
 
-          {ruleCode === 'R-4s' && (
-            <>
+            {/* Delta SD for R-4s */}
+            {ruleCode === 'R-4s' && (
               <div>
                 <Label className="text-xs">Delta SD</Label>
                 <Input
@@ -193,27 +307,51 @@ function RuleEditor({
                   className="text-sm"
                 />
               </div>
-              <div className="md:col-span-2 space-y-2">
-                <label className="flex items-center text-sm">
-                  <input
-                    type="checkbox"
-                    checked={rule.within_run_across_levels || false}
-                    onChange={(e) => onChange({ ...rule, within_run_across_levels: e.target.checked })}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="ml-2">Trong cùng một lần chạy, giữa các mức</span>
-                </label>
+            )}
+
+            {/* Across runs checkbox */}
+            {(ruleCode === '2-2s' || ruleCode === 'R-4s') && (
+              <div className="flex items-center pt-6">
                 <label className="flex items-center text-sm">
                   <input
                     type="checkbox"
                     checked={rule.across_runs || false}
                     onChange={(e) => onChange({ ...rule, across_runs: e.target.checked })}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    title="Cho phép phát hiện quy tắc giữa các lần chạy khác nhau"
                   />
-                  <span className="ml-2">Giữa các lần chạy</span>
+                  <span className="ml-2">Giữa các chạy</span>
                 </label>
               </div>
-            </>
+            )}
+          </div>
+
+          {/* Third Row: N_set for Nx_ext */}
+          {ruleCode === 'Nx_ext' && (
+            <div className="border-t border-gray-100 pt-3">
+              <Label className="text-xs">Bộ giá trị N (tách bởi dấu phẩy) 📝</Label>
+              <Input
+                type="text"
+                value={(rule.n_set || [8, 9, 10, 12]).join(', ')}
+                onChange={(e) => {
+                  const values = e.target.value.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v) && v > 0)
+                  onChange({ ...rule, n_set: values })
+                }}
+                placeholder="8, 9, 10, 12"
+                className="text-sm"
+                title="Danh sách các giá trị N để kiểm tra (ví dụ: 8,9,10,12)"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Quy tắc sẽ kiểm tra tất cả các giá trị n trong danh sách này
+              </p>
+            </div>
+          )}
+
+          {/* Help text for complex rules */}
+          {(rule.required_levels === '2' || rule.required_levels === '3') && (
+            <div className="bg-blue-50 border border-blue-200 rounded p-2 text-xs text-blue-700">
+              ⚠️ Quy tắc này yêu cầu ít nhất {rule.required_levels} mức. Nếu lần chạy không có đủ số mức, quy tắc sẽ bị bỏ qua.
+            </div>
           )}
         </div>
       )}
@@ -279,7 +417,7 @@ export default function RuleProfileEditPage() {
     }
   }, [showJsonEditor, formData])
 
-  const handleRuleChange = (ruleCode: string, newRule: RuleConfig) => {
+  const handleRuleChange = (ruleCode: string, newRule: EnhancedRuleConfig) => {
     setFormData(prev => ({
       ...prev,
       rules: {

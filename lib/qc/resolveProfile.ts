@@ -1,53 +1,28 @@
 import { db } from '@/lib/db/client'
 import { ruleProfiles, ruleProfileBindings } from '@/lib/db/schema'
 import { eq, and, or, lte, gte, isNull, desc, sql } from 'drizzle-orm'
+import { 
+  type RuleConfigSchema, 
+  type RulesConfigSchema, 
+  validateRulesConfig,
+  DEFAULT_ENHANCED_RULES 
+} from './rules.schema'
 
 /**
- * Configuration for individual Westgard rules
+ * Configuration for individual Westgard rules (legacy compatibility)
  */
-export interface RuleConfig {
-  enabled: boolean
-  severity?: 'warn' | 'fail'
-  threshold_sd?: number
-  window?: number
-  n?: number
-  within_run_across_levels?: boolean
-  across_runs?: boolean
-  delta_sd?: number
-}
+export interface RuleConfig extends RuleConfigSchema {}
 
 /**
- * Complete rules configuration including global settings and individual rules
+ * Complete rules configuration including global settings and individual rules (legacy compatibility)
  */
-export interface RulesConfig {
-  window_size_default: number
-  rules: Record<string, RuleConfig>
-}
+export interface RulesConfig extends RulesConfigSchema {}
 
 /**
  * Default MVP rule configuration that matches the original hard-coded engine behavior
+ * Now uses enhanced schema with metadata
  */
-const DEFAULT_RULES: RulesConfig = {
-  window_size_default: 12,
-  rules: {
-    '1-3s': { enabled: true, severity: 'fail' },
-    '1-2s': { enabled: true, severity: 'warn' },
-    '2-2s': { enabled: true, severity: 'fail' },
-    'R-4s': { 
-      enabled: true, 
-      severity: 'fail',
-      within_run_across_levels: true, 
-      across_runs: true, 
-      delta_sd: 4 
-    },
-    '4-1s': { enabled: true, severity: 'fail', threshold_sd: 1, window: 4 },
-    '10x': { enabled: true, severity: 'fail', n: 10 },
-    '7T': { enabled: true, severity: 'fail', n: 7 },
-    '2of3-2s': { enabled: false, severity: 'fail', threshold_sd: 2, window: 3 },
-    '3-1s': { enabled: false, severity: 'fail', threshold_sd: 1, window: 3 },
-    '6x': { enabled: false, severity: 'fail', n: 6 }
-  }
-}
+const DEFAULT_RULES: RulesConfig = DEFAULT_ENHANCED_RULES
 
 /**
  * Resolve the effective rule profile for a specific device, test, and time
@@ -140,7 +115,7 @@ export async function resolveProfile({
     // Return the first (highest priority) match or default rules
     const binding = bindings[0]
     if (binding?.enabledRules) {
-      // Validate and return the profile rules
+      // Validate and return the profile rules using new schema
       return validateRulesConfig(binding.enabledRules as any) || DEFAULT_RULES
     }
 
@@ -154,10 +129,11 @@ export async function resolveProfile({
 
 /**
  * Validate that a rules config object has the expected structure
- * @param config Raw configuration object from database
+ * @param config Raw configuration object from database  
  * @returns RulesConfig if valid, null if invalid
+ * @deprecated Use validateRulesConfig from rules.schema.ts instead
  */
-function validateRulesConfig(config: any): RulesConfig | null {
+function validateRulesConfigLegacy(config: any): RulesConfig | null {
   try {
     // Basic structure validation
     if (!config || typeof config !== 'object') return null
