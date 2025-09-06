@@ -224,7 +224,7 @@ export function QuickEntryForm({
           side: data.evaluation?.side || 'on',
           status: data.evaluation?.status || 'accepted',
           autoResult: data.evaluation?.autoResult || 'accepted',
-          runAt: new Date(),
+          runAt: new Date().toISOString(),
           createdAt: new Date(),
         }
         

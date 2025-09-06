@@ -32,6 +32,8 @@ export const GET = withAuth(
           // UTC timestamps
           createdAt: qcRuns.createdAt,
           runAt: sql<string>`to_char(${qcRuns.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`.as('run_at_utc'),
+          // Numeric timestamp for chart X-axis (epoch milliseconds)
+          t: sql<number>`EXTRACT(EPOCH FROM ${qcRuns.createdAt}) * 1000`.as('t'),
           // Raw IDs for filtering
           deviceId: qcRuns.deviceId,
           testId: qcRuns.testId,
@@ -92,8 +94,11 @@ export const GET = withAuth(
         query = query.where(and(...conditions)) as typeof query
       }
 
+      // Apply ordering - default to desc (newest first), but allow asc for charts
+      const orderDirection = filters.order === 'asc' ? qcRuns.createdAt : desc(qcRuns.createdAt)
+      
       const runs = await query
-        .orderBy(desc(qcRuns.createdAt))
+        .orderBy(orderDirection)
         .limit(filters.limit)
         .offset(filters.offset)
 
@@ -102,6 +107,8 @@ export const GET = withAuth(
         ...run,
         value: run.value ? Number(run.value) : null,
         z: run.z ? Number(run.z) : null,
+        // Ensure t is properly typed as number (epoch milliseconds)
+        t: run.t ? Number(run.t) : (run.runAt ? Date.parse(run.runAt) : Date.parse(run.createdAt?.toString() || '')),
       }))
 
       if (includeCount) {

@@ -100,10 +100,10 @@
 **Priority**: High | **Estimated Time**: 2 hours
 
 **Description**: Ensure accurate client-side z-score computation with proper error handling
-- [ ] Implement `computeZ(value, mean, sd)` function with null checks
-- [ ] Handle edge cases: sd <= 0, missing limits, invalid values
-- [ ] Emit ghost points via callback when values change
-- [ ] Clear ghost points when values are removed
+- [✅] Implement `computeZ(value, mean, sd)` function with null checks
+- [✅] Handle edge cases: sd <= 0, missing limits, invalid values
+- [✅] Emit ghost points via callback when values change
+- [✅] Clear ghost points when values are removed
 
 **Technical Implementation**:
 ```typescript

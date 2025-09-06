@@ -14,9 +14,13 @@ const bulkCreateQcRunsSchema = z.object({
 
 // POST /api/qc/run-groups/[groupId]/runs/bulk - Create multiple QC runs in a single transaction
 export const POST = withAuth(
-  async (request: NextRequest, user, context) => {
+  async (request: NextRequest, user) => {
     try {
-      const groupId = context?.params?.groupId
+      const url = new URL(request.url)
+      const pathSegments = url.pathname.split('/')
+      const groupIdIndex = pathSegments.findIndex(segment => segment === 'run-groups') + 1
+      const groupId = pathSegments[groupIdIndex]
+      
       if (!groupId) {
         return NextResponse.json(
           { error: 'Group ID is required' },
@@ -45,7 +49,7 @@ export const POST = withAuth(
 
       // For supervisors/admins, validate that performer exists if overriding
       if (['supervisor', 'admin'].includes(user.role)) {
-        const performerIds = [...new Set(runs.map(run => run.performerId))]
+        const performerIds = Array.from(new Set(runs.map(run => run.performerId)))
         for (const performerId of performerIds) {
           if (performerId !== user.id) {
             const [performer] = await db

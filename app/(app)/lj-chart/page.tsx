@@ -1,25 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback, useEffect, Suspense } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Brush } from 'recharts'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { LeveyJenningsChart, QcRun, QcLimits } from '@/components/lj/LeveyJenningsChart'
 import CustomSelect from '@/components/ui/CustomSelect'
 import { Input } from '@/components/ui/Input'
-
-interface ChartDataPoint {
-  date: string
-  value: number
-  z: number
-  status: 'accepted' | 'pending' | 'rejected'
-  autoResult: 'pass' | 'warn' | 'fail'
-  approvalState: 'pending' | 'approved' | 'rejected'
-  violations: string[]
-  performer: string
-  performerName: string
-  lotCode: string
-  lotExpireDate: string
-  runAtUtc: string
-}
 
 interface QcLimit {
   mean: number
@@ -27,13 +13,53 @@ interface QcLimit {
   cv: number
 }
 
-export default function LjChart() {
-  const [deviceId, setDeviceId] = useState('')
-  const [testId, setTestId] = useState('')
-  const [levelId, setLevelId] = useState('')
-  const [lotId, setLotId] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+function LjChartPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  
+  // Initialize state from URL parameters
+  const [deviceId, setDeviceId] = useState(() => searchParams.get('deviceId') || '')
+  const [testId, setTestId] = useState(() => searchParams.get('testId') || '')
+  const [levelId, setLevelId] = useState(() => searchParams.get('levelId') || '')
+  const [lotId, setLotId] = useState(() => searchParams.get('lotId') || '')
+  const [dateFrom, setDateFrom] = useState(() => {
+    const param = searchParams.get('from')
+    if (param) return param
+    
+    // Default to 30 days ago
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    return thirtyDaysAgo.toISOString().split('T')[0]
+  })
+  const [dateTo, setDateTo] = useState(() => {
+    const param = searchParams.get('to')
+    if (param) return param
+    
+    // Default to today
+    return new Date().toISOString().split('T')[0]
+  })
+
+  // Update URL when filters change
+  const updateURL = useCallback(() => {
+    const params = new URLSearchParams()
+    
+    if (deviceId) params.set('deviceId', deviceId)
+    if (testId) params.set('testId', testId)
+    if (levelId) params.set('levelId', levelId)
+    if (lotId) params.set('lotId', lotId)
+    if (dateFrom) params.set('from', dateFrom)
+    if (dateTo) params.set('to', dateTo)
+    
+    const paramString = params.toString()
+    const newURL = paramString ? `?${paramString}` : '/lj-chart'
+    
+    router.replace(newURL, { scroll: false })
+  }, [router, deviceId, testId, levelId, lotId, dateFrom, dateTo])
+
+  // Update URL when any filter changes
+  useEffect(() => {
+    updateURL()
+  }, [updateURL])
 
   // Fetch master data (same as QuickEntry)
   const { data: devices } = useQuery({
@@ -99,7 +125,7 @@ export default function LjChart() {
   })
 
   // Fetch QC runs data for chart
-  const { data: chartData, isLoading } = useQuery<ChartDataPoint[]>({
+  const { data: chartData, isLoading } = useQuery<QcRun[]>({
     queryKey: ['chart-data', deviceId, testId, levelId, lotId, dateFrom, dateTo],
     queryFn: async () => {
       const params = new URLSearchParams()
@@ -110,6 +136,7 @@ export default function LjChart() {
       if (dateFrom) params.append('from', dateFrom)
       if (dateTo) params.append('to', dateTo)
       params.append('limit', '1000')
+      params.append('order', 'asc') // Use time ascending order for proper L-J chart
       
       const res = await fetch(`/api/qc/runs?${params}`)
       if (!res.ok) {
@@ -121,27 +148,7 @@ export default function LjChart() {
         return []
       }
       
-      return runs.map((run: any) => ({
-        date: new Date(run.runAt || run.createdAt).toLocaleDateString('vi-VN', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZone: 'Asia/Ho_Chi_Minh'
-        }),
-        value: Number(run.value) || 0,
-        z: Number(run.z || 0),
-        status: run.status || 'pending',
-        autoResult: run.autoResult || 'pass',
-        approvalState: run.approvalState || 'pending',
-        violations: [], // TODO: Fetch violations
-        performer: run.performerId || '',
-        performerName: run.performerName || 'Unknown',
-        lotCode: run.lotCode || 'Unknown',
-        lotExpireDate: run.lotExpireDate || '',
-        runAtUtc: run.runAt || run.createdAt || '',
-      }))
+      return runs
     },
     enabled: !!(deviceId && testId && levelId && lotId),
   })
@@ -149,85 +156,11 @@ export default function LjChart() {
   const mean = qcLimits?.mean || 0
   const sd = qcLimits?.sd || 0
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload as ChartDataPoint
-      const autoResultColors = {
-        pass: 'text-green-600',
-        warn: 'text-yellow-600', 
-        fail: 'text-red-600'
-      }
-      const approvalStateColors = {
-        pending: 'text-orange-600',
-        approved: 'text-green-600',
-        rejected: 'text-red-600'
-      }
-      
-      return (
-        <div className="bg-white p-3 border border-gray-200 rounded-2xl shadow-md max-w-sm">
-          <p className="font-medium">{`Thời gian: ${label}`}</p>
-          <p className="text-blue-600">{`Giá trị: ${data.value}`}</p>
-          <p className="text-gray-600">{`Z-score: ${data.z != null && !isNaN(Number(data.z)) ? Number(data.z).toFixed(2) : 'N/A'}`}</p>
-          
-          <div className="flex justify-between mt-2">
-            <p className={`text-sm ${autoResultColors[data.autoResult]}`}>
-              Kết quả: {data.autoResult.toUpperCase()}
-            </p>
-            <p className={`text-sm ${approvalStateColors[data.approvalState]}`}>
-              Duyệt: {data.approvalState === 'pending' ? 'Chờ' : 
-                      data.approvalState === 'approved' ? 'Đã duyệt' : 'Từ chối'}
-            </p>
-          </div>
-          
-          <p className="text-sm text-gray-500 mt-1">Thực hiện: {data.performerName}</p>
-          <p className="text-sm text-gray-500">Lô: {data.lotCode}</p>
-          
-          {data.violations.length > 0 && (
-            <p className="text-red-600 text-sm mt-1">
-              Vi phạm: {data.violations.join(', ')}
-            </p>
-          )}
-        </div>
-      )
-    }
-    return null
-  }
-
-  const CustomDot = (props: any) => {
-    const { cx, cy, payload } = props
-    
-    // Colors based on auto_result
-    const autoResultColors = {
-      pass: '#10b981', // green
-      warn: '#f59e0b',  // yellow
-      fail: '#ef4444',  // red
-    }
-    
-    // Hollow vs solid based on approval_state
-    const isApproved = payload.approvalState === 'approved'
-    const isRejected = payload.approvalState === 'rejected'
-    const isPending = payload.approvalState === 'pending'
-    
-    const color = autoResultColors[payload.autoResult as keyof typeof autoResultColors] || '#6b7280'
-    
-    return (
-      <circle
-        cx={cx}
-        cy={cy}
-        r={5}
-        fill={isPending ? 'white' : color} // Hollow for pending, solid for approved/rejected
-        stroke={color}
-        strokeWidth={isPending ? 2 : 1}
-        opacity={isRejected ? 0.6 : 1} // Slightly transparent if rejected
-      />
-    )
-  }
-
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Biểu đồ Levey-Jennings</h1>
-        <p className="text-gray-600 mt-1">Biểu đồ L-J tương tác với quy tắc Westgard</p>
+        <p className="text-gray-600 mt-1">Biểu đồ Levey-Jennings tương tác với quy tắc Westgard</p>
       </div>
 
       {/* Filters */}
@@ -302,7 +235,7 @@ export default function LjChart() {
       <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold text-gray-900">
-            Biểu đồ L-J
+            Biểu đồ Levey-Jennings
             {qcLimits && (
               <span className="text-sm font-normal text-gray-600 ml-2">
                 (Mean: {mean}, SD: {sd})
@@ -362,46 +295,28 @@ export default function LjChart() {
             }
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis domain={['dataMin - 0.5', 'dataMax + 0.5']} />
-              
-              {/* Reference lines for mean and SD */}
-              {qcLimits && (
-                <>
-                  <ReferenceArea 
-                    y1={mean - 3 * sd} 
-                    y2={mean + 3 * sd} 
-                    fill="#ef4444" 
-                    fillOpacity={0.1} 
-                  />
-                  <ReferenceLine y={mean} stroke="#374151" strokeDasharray="4 2" />
-                  <ReferenceLine y={mean + sd} stroke="#6b7280" strokeDasharray="2 2" />
-                  <ReferenceLine y={mean - sd} stroke="#6b7280" strokeDasharray="2 2" />
-                  <ReferenceLine y={mean + 2 * sd} stroke="#f59e0b" strokeDasharray="2 2" />
-                  <ReferenceLine y={mean - 2 * sd} stroke="#f59e0b" strokeDasharray="2 2" />
-                  <ReferenceLine y={mean + 3 * sd} stroke="#ef4444" strokeDasharray="2 2" />
-                  <ReferenceLine y={mean - 3 * sd} stroke="#ef4444" strokeDasharray="2 2" />
-                </>
-              )}
-              
-              <Line 
-                type="monotone" 
-                dataKey="value" 
-                stroke="#2563eb" 
-                strokeWidth={2}
-                dot={<CustomDot />}
-                connectNulls={false}
-              />
-              
-              <Tooltip content={<CustomTooltip />} />
-              <Brush dataKey="date" height={30} />
-            </LineChart>
-          </ResponsiveContainer>
+          <LeveyJenningsChart
+            limits={qcLimits ? { mean: qcLimits.mean, sd: qcLimits.sd } : undefined}
+            runs={chartData || []}
+            height={500}
+          />
         )}
       </div>
     </div>
   )
 }
+
+function LjChartWithSuspense() {
+  return (
+    <Suspense fallback={<div className="max-w-7xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Biểu đồ Levey-Jennings</h1>
+        <p className="text-gray-600 mt-1">Đang tải...</p>
+      </div>
+    </div>}>
+      <LjChartPage />
+    </Suspense>
+  )
+}
+
+export default LjChartWithSuspense

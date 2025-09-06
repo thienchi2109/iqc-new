@@ -215,6 +215,8 @@ export const qcRunFiltersSchema = z.object({
   deviceCode: z.string().optional(),
   testCode: z.string().optional(),
   level: z.string().optional(),
+  // Add ordering parameter for time series charts
+  order: z.enum(['asc', 'desc']).default('desc').optional(),
 }).merge(dateRangeSchema).merge(paginationSchema)
 
 // Quick Entry form validation
