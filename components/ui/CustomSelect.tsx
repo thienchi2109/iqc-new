@@ -24,6 +24,7 @@ export default function CustomSelect({ options, value, onChange, placeholder, di
   const rootRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const instanceId = useRef(`dropdown-${Math.random().toString(36).substr(2, 9)}`)
 
   const selectedOption = options.find(option => option.value === value)
 
@@ -52,13 +53,48 @@ export default function CustomSelect({ options, value, onChange, placeholder, di
       const rect = btn.getBoundingClientRect()
       setMenuPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: rect.width })
     }
+    
     if (isOpen) {
+      // Initial position update
       updatePosition()
-      window.addEventListener('scroll', updatePosition, true)
-      window.addEventListener('resize', updatePosition)
+      
+      // More aggressive position updates for better tracking
+      let timeoutId: NodeJS.Timeout
+      const debouncedUpdate = () => {
+        clearTimeout(timeoutId)
+        timeoutId = setTimeout(updatePosition, 5) // Reduced from 10ms for faster response
+      }
+      
+      // Listen for scroll and resize events
+      window.addEventListener('scroll', debouncedUpdate, true)
+      window.addEventListener('resize', debouncedUpdate)
+      
+      // Listen for any DOM changes that might affect positioning
+      const observer = new MutationObserver(() => {
+        // Use immediate update for DOM changes since they're often immediate
+        updatePosition()
+      })
+      
+      // More targeted observation - only watch the immediate card container
+      const cardContainer = buttonRef.current?.closest('.border.border-gray-200.rounded-xl') || 
+                          buttonRef.current?.closest('[data-level-card]') ||
+                          buttonRef.current?.closest('.space-y-6') ||
+                          document.body
+                          
+      if (cardContainer) {
+        observer.observe(cardContainer, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['style', 'class', 'data-*']
+        })
+      }
+      
       return () => {
-        window.removeEventListener('scroll', updatePosition, true)
-        window.removeEventListener('resize', updatePosition)
+        clearTimeout(timeoutId)
+        window.removeEventListener('scroll', debouncedUpdate, true)
+        window.removeEventListener('resize', debouncedUpdate)
+        observer.disconnect()
       }
     }
   }, [isOpen])
@@ -90,8 +126,13 @@ export default function CustomSelect({ options, value, onChange, placeholder, di
       {isClient && isOpen && createPortal(
         <div
           ref={menuRef}
-          className="fixed z-50 bg-white shadow-lg rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm max-h-60"
-          style={{ top: menuPos.top, left: menuPos.left, minWidth: menuPos.width }}
+          className="fixed z-[70] bg-white shadow-lg rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm max-h-60 border border-gray-200"
+          style={{ 
+            top: Math.max(0, menuPos.top), // Prevent negative positioning
+            left: Math.max(0, Math.min(menuPos.left, window.innerWidth - 250)), // Keep within viewport
+            minWidth: menuPos.width,
+            maxWidth: 'calc(100vw - 20px)' // Prevent overflow on small screens
+          }}
           role="listbox"
         >
           {options.map(option => (

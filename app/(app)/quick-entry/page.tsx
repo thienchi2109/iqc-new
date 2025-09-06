@@ -1,426 +1,144 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useSession } from 'next-auth/react'
-import { Input } from '@/components/ui/input'
-import CustomSelect from '@/components/ui/CustomSelect'
-import { Button } from '@/components/ui/button'
+import { useQuery } from '@tanstack/react-query'
+import QuickEntryForm from '@/components/quick-entry/QuickEntryForm'
+import LjPanel, { QcRun, QcLimits } from '@/components/lj/LjPanel'
+import { useGhostPoints, GhostPoint } from '@/components/lj/useGhostPoints'
 
-interface User {
-  id: string
-  name: string
-  username: string
-  role: 'tech' | 'supervisor' | 'qaqc' | 'admin'
-}
-
-interface Device {
-  id: string
-  code: string
-  name: string
-}
-
-interface Test {
-  id: string
-  code: string
-  name: string
-  defaultUnitId?: string
-  defaultMethodId?: string
-}
-
-interface Unit {
-  id: string
-  code: string
-  display: string
-}
-
-interface Method {
-  id: string
-  code: string
-  name: string
-}
-
-interface QcLevel {
-  id: string
+interface Selection {
+  deviceId: string
   testId: string
-  level: string
-  material?: string
-}
-
-interface QcLot {
-  id: string
-  levelId: string
-  lotCode: string
-  expireDate: string
-}
-
-interface LevelEntry {
   levelId: string
   lotId: string
-  value: string
-  unitId: string
-  methodId: string
-  notes?: string
 }
 
-export default function QuickEntry() {
-  const { data: session } = useSession()
-  const queryClient = useQueryClient()
-
-  const [deviceId, setDeviceId] = useState('')
-  const [testId, setTestId] = useState('')
-  const [performerId, setPerformerId] = useState(session?.user?.id || '')
-  const [runAt, setRunAt] = useState(() => {
-    const now = new Date()
-    const offset = now.getTimezoneOffset()
-    const localDate = new Date(now.getTime() - offset * 60 * 1000)
-    return localDate.toISOString().slice(0, 16)
-  })
-
-  // Update performerId when session changes
-  React.useEffect(() => {
-    if (session?.user?.id && !performerId) {
-      setPerformerId(session.user.id)
+export default function QuickEntryUnified() {
+  const [selection, setSelection] = useState<Selection | null>(null)
+  const [limits, setLimits] = useState<QcLimits | null>(null)
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>(() => {
+    const today = new Date()
+    const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+    return {
+      from: thirtyDaysAgo.toISOString().split('T')[0],
+      to: today.toISOString().split('T')[0]
     }
-  }, [session?.user?.id, performerId])
-  const [levels, setLevels] = useState<LevelEntry[]>([
-    { levelId: '', lotId: '', value: '', unitId: '', methodId: '', notes: '' },
-  ])
-
-  // Master data
-  const { data: devices } = useQuery<Device[]>({
-    queryKey: ['devices'],
-    queryFn: () => fetch('/api/devices').then((res) => res.json()),
   })
+  const { ghostPoints, addGhost, clearGhost, getAllGhosts, getRFourSHint } = useGhostPoints()
 
-  const { data: tests } = useQuery<Test[]>({
-    queryKey: ['tests'],
-    queryFn: () => fetch('/api/tests').then((res) => res.json()),
-  })
-
-  const { data: units } = useQuery<Unit[]>({
-    queryKey: ['units'],
-    queryFn: () => fetch('/api/units').then((res) => res.json()),
-  })
-
-  const { data: methods } = useQuery<Method[]>({
-    queryKey: ['methods'],
-    queryFn: () => fetch('/api/methods').then((res) => res.json()),
-  })
-
-  // Fetch users for performer selection (only for supervisors/admins)
-  const { data: users } = useQuery<User[]>({
-    queryKey: ['users'],
-    queryFn: () => fetch('/api/users').then((res) => res.json()),
-    enabled: !!(session?.user?.role && ['supervisor', 'admin'].includes(session.user.role)),
-  })
-
-  // Dependent data
-  const { data: qcLevels } = useQuery<QcLevel[]>({
-    queryKey: ['qc-levels', testId],
-    queryFn: () => fetch(`/api/qc/levels?testId=${testId}`).then((res) => res.json()),
-    enabled: !!testId,
-  })
-
-  const { data: qcLots } = useQuery<QcLot[]>({
-    queryKey: ['qc-lots', levels.map((l) => l.levelId).filter(Boolean)],
-    queryFn: () => {
-      const levelIds = levels.map((l) => l.levelId).filter(Boolean)
-      if (levelIds.length === 0) return []
-      return fetch(`/api/qc/lots?${levelIds.map((id) => `levelId=${id}`).join('&')}`).then((res) => res.json())
-    },
-    enabled: levels.some((l) => l.levelId),
-  })
-
-  // Mutations
-  const createRunGroupMutation = useMutation({
-    mutationFn: async (data: { deviceId: string; testId: string; runAt: string }) => {
-      const response = await fetch('/api/qc/run-groups', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+  // Fetch historical QC runs for the chart
+  const { data: qcRuns = [], isLoading: runsLoading } = useQuery<QcRun[]>({
+    queryKey: ['qc-runs', selection?.deviceId, selection?.testId, selection?.levelId, selection?.lotId, dateRange.from, dateRange.to],
+    queryFn: async () => {
+      if (!selection) return []
+      const params = new URLSearchParams({
+        deviceId: selection.deviceId,
+        testId: selection.testId,
+        levelId: selection.levelId,
+        lotId: selection.lotId,
+        from: dateRange.from,
+        to: dateRange.to,
+        limit: '100', // Last 100 runs
       })
-      if (!response.ok) throw new Error('Failed to create run group')
+      const response = await fetch(`/api/qc/runs?${params}`)
+      if (!response.ok) return []
       return response.json()
     },
+    enabled: !!(selection?.deviceId && selection?.testId && selection?.levelId && selection?.lotId),
   })
 
-  const createQcRunMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await fetch('/api/qc/runs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-      if (!response.ok) throw new Error('Failed to create QC run')
-      return response.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recent-runs'] })
-      queryClient.invalidateQueries({ queryKey: ['run-stats'] })
-    },
-  })
-
-  const selectedTest = tests?.find((t) => t.id === testId)
-
-  const addLevel = () => {
-    if (levels.length < 3) {
-      setLevels([
-        ...levels,
-        {
-          levelId: '',
-          lotId: '',
-          value: '',
-          unitId: selectedTest?.defaultUnitId || '',
-          methodId: selectedTest?.defaultMethodId || '',
-          notes: '',
-        },
-      ])
+  const handleGhostPointChange = (levelId: string, ghostPoint: GhostPoint | null) => {
+    if (ghostPoint) {
+      addGhost(levelId, ghostPoint.value, limits?.mean || 0, limits?.sd || 1)
+    } else {
+      clearGhost(levelId)
     }
   }
 
-  const removeLevel = (index: number) => {
-    if (levels.length > 1) {
-      setLevels(levels.filter((_, i) => i !== index))
-    }
+  const handleSelectionChange = (newSelection: Selection) => {
+    setSelection(newSelection)
   }
 
-  const updateLevel = (index: number, field: keyof LevelEntry, value: string) => {
-    const newLevels = [...levels]
-    newLevels[index] = { ...newLevels[index], [field]: value }
-    setLevels(newLevels)
-  }
-
-  const handleTestChange = (newTestId: string) => {
-    setTestId(newTestId)
-    const test = tests?.find((t) => t.id === newTestId)
-    if (test) {
-      setLevels(
-        levels.map((level) => ({
-          ...level,
-          unitId: test.defaultUnitId || level.unitId,
-          methodId: test.defaultMethodId || level.methodId,
-        }))
-      )
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!session?.user?.id) return
-
-    try {
-      const runGroup = await createRunGroupMutation.mutateAsync({ deviceId, testId, runAt })
-      for (const level of levels) {
-        if (level.levelId && level.value) {
-          await createQcRunMutation.mutateAsync({
-            groupId: runGroup.id,
-            deviceId,
-            testId,
-            levelId: level.levelId,
-            lotId: level.lotId,
-            value: parseFloat(level.value),
-            unitId: level.unitId,
-            methodId: level.methodId,
-            performerId: performerId,
-            notes: level.notes,
-          })
-        }
-      }
-
-      // Reset form
-      setDeviceId('')
-      setTestId('')
-      setPerformerId(session?.user?.id || '')
-      setRunAt(() => {
-        const now = new Date()
-        const offset = now.getTimezoneOffset()
-        const localDate = new Date(now.getTime() - offset * 60 * 1000)
-        return localDate.toISOString().slice(0, 16)
-      })
-      setLevels([{ levelId: '', lotId: '', value: '', unitId: '', methodId: '', notes: '' }])
-
-      alert('Tạo lần chạy QC thành công!')
-    } catch (error) {
-      console.error('Lỗi khi tạo lần chạy QC:', error)
-      alert('Lỗi khi tạo lần chạy QC. Vui lòng thử lại.')
-    }
+  const handleLimitsChange = (newLimits: QcLimits | null) => {
+    setLimits(newLimits)
   }
 
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Nhập kết quả QC</h1>
-        <p className="text-gray-600 mt-1">Nhập dữ liệu QC cho tối đa 3 mức trong một phiên</p>
+        <h1 className="text-3xl font-bold text-gray-900">Nhập kết quả QC với biểu đồ trực tiếp</h1>
+        <p className="text-gray-600 mt-1">Nhập dữ liệu QC và xem ghost points trên biểu đồ Levey-Jennings theo thời gian thực</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-md border border-gray-200 p-6 space-y-6">
-        {/* Run Information */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Thiết bị *</label>
-            <CustomSelect
-              value={deviceId}
-              onChange={(value) => setDeviceId(value)}
-              options={devices?.map((device) => ({ value: device.id, label: `${device.code} - ${device.name}` })) || []}
-              placeholder="Chọn thiết bị"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Xét nghiệm *</label>
-            <CustomSelect
-              value={testId}
-              onChange={(value) => handleTestChange(value)}
-              options={tests?.map((test) => ({ value: test.id, label: `${test.code} - ${test.name}` })) || []}
-              placeholder="Chọn xét nghiệm"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Người thực hiện *</label>
-            {session?.user?.role === 'tech' ? (
-              <Input
-                value={session.user.name || session.user.email || ''}
-                disabled
-                className="bg-gray-50"
-              />
-            ) : (
-              <CustomSelect
-                value={performerId}
-                onChange={(value) => setPerformerId(value)}
-                options={(users as User[] | undefined)?.map((user) => ({ value: user.id, label: `${user.name} (${user.username})` })) || []}
-                placeholder="Chọn người thực hiện"
-              />
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Ngày/giờ chạy *</label>
-            <Input type="datetime-local" value={runAt} onChange={(e) => setRunAt(e.target.value)} required />
-          </div>
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
+        {/* Left Column - Quick Entry Form (3/5 of width on xl screens) */}
+        <div className="xl:col-span-3">
+          <QuickEntryForm
+            onGhostPointChange={handleGhostPointChange}
+            onSelectionChange={handleSelectionChange}
+            onLimitsChange={handleLimitsChange}
+          />
         </div>
 
-        {/* QC Levels */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-medium text-gray-900">Mức QC</h3>
-            {levels.length < 3 && (
-              <Button type="button" onClick={addLevel} variant="outline" size="sm">
-                Thêm mức
-              </Button>
-            )}
-          </div>
-
-          {levels.map((level, index) => (
-            <div key={index} className="p-4 border border-gray-200 rounded-2xl bg-gray-50">
-              <div className="flex justify-between items-center mb-3">
-                <h4 className="font-medium text-gray-900">Mức {index + 1}</h4>
-                {levels.length > 1 && (
-                  <Button type="button" onClick={() => removeLevel(index)} variant="destructive" size="sm">
-                    Xóa
-                  </Button>
-                )}
+        {/* Right Column - Levey-Jennings Chart (2/5 of width on xl screens) */}
+        <div className="xl:col-span-2">
+          <div className="mb-4">
+            <div className="flex flex-wrap gap-2 mb-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Từ ngày</label>
+                <input
+                  type="date"
+                  value={dateRange.from}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+                  className="border border-gray-300 rounded px-2 py-1 text-sm w-full"
+                />
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mức QC *</label>
-                  <CustomSelect
-                    value={level.levelId}
-                    onChange={(value) => updateLevel(index, 'levelId', value)}
-                    options={qcLevels?.map((qcLevel) => ({ value: qcLevel.id, label: `${qcLevel.level} - ${qcLevel.material}` })) || []}
-                    placeholder="Chọn mức"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Lô QC *</label>
-                  <CustomSelect
-                    value={level.lotId}
-                    onChange={(value) => updateLevel(index, 'lotId', value)}
-                    options={
-                      qcLots?.filter((lot) => lot.levelId === level.levelId).map((lot) => ({
-                        value: lot.id,
-                        label: `${lot.lotCode} (HSD: ${lot.expireDate})`,
-                      })) || []
-                    }
-                    placeholder="Chọn lô"
-                    disabled={!level.levelId}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Giá trị *</label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={level.value}
-                    onChange={(e) => updateLevel(index, 'value', e.target.value)}
-                    placeholder="0.00"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Đơn vị *</label>
-                  <CustomSelect
-                    value={level.unitId}
-                    onChange={(value) => updateLevel(index, 'unitId', value)}
-                    options={units?.map((unit) => ({ value: unit.id, label: unit.display })) || []}
-                    placeholder="Chọn đơn vị"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phương pháp *</label>
-                  <CustomSelect
-                    value={level.methodId}
-                    onChange={(value) => updateLevel(index, 'methodId', value)}
-                    options={methods?.map((method) => ({ value: method.id, label: method.name })) || []}
-                    placeholder="Chọn phương pháp"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                  <Input
-                    type="text"
-                    value={level.notes || ''}
-                    onChange={(e) => updateLevel(index, 'notes', e.target.value)}
-                    placeholder="Ghi chú tùy chọn"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Đến ngày</label>
+                <input
+                  type="date"
+                  value={dateRange.to}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+                  className="border border-gray-300 rounded px-2 py-1 text-sm w-full"
+                />
               </div>
             </div>
-          ))}
+          </div>
+          <LjPanel
+            deviceId={selection?.deviceId}
+            testId={selection?.testId}
+            levelId={selection?.levelId}
+            lotId={selection?.lotId}
+            limits={limits || undefined}
+            ghostPoints={getAllGhosts()}
+            runs={qcRuns}
+            isLoading={runsLoading}
+            title="Biểu đồ Levey-Jennings - Xem trước trực tiếp"
+          />
         </div>
+      </div>
 
-        {/* Submit */}
-        <div className="flex justify-end space-x-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setDeviceId('')
-              setTestId('')
-              setPerformerId(session?.user?.id || '')
-              setRunAt(() => {
-                const now = new Date()
-                const offset = now.getTimezoneOffset()
-                const localDate = new Date(now.getTime() - offset * 60 * 1000)
-                return localDate.toISOString().slice(0, 16)
-              })
-              setLevels([{ levelId: '', lotId: '', value: '', unitId: '', methodId: '', notes: '' }])
-            }}
-          >
-            Làm mới
-          </Button>
-          <Button type="submit" disabled={createRunGroupMutation.isPending || createQcRunMutation.isPending}>
-            {createRunGroupMutation.isPending || createQcRunMutation.isPending ? 'Đang tạo...' : 'Tạo lần chạy QC'}
-          </Button>
+      {/* Ghost Points Summary */}
+      {getAllGhosts().length > 0 && (
+        <div className="mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-gray-900 mb-2">Điểm tạm thời hiện tại:</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {getAllGhosts().map((ghost, index) => (
+              <div key={ghost.levelId} className="text-sm">
+                <div className="flex items-center space-x-2">
+                  <div 
+                    className="w-3 h-3 rounded-full border-2 border-dashed"
+                    style={{ borderColor: ghost.color }}
+                  ></div>
+                  <span className="font-medium">Mức {index + 1}:</span>
+                  <span>{ghost.value.toFixed(3)}</span>
+                  <span className="text-gray-500">(Z: {ghost.z.toFixed(3)})</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </form>
+      )}
     </div>
   )
 }

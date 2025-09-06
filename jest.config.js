@@ -4,7 +4,7 @@ const { compilerOptions } = require('./tsconfig.json');
 /** @type {import('jest').Config} */
 module.exports = {
   // Test environment
-  testEnvironment: 'node',
+  testEnvironment: 'jsdom',
 
   // Setup files
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
@@ -18,12 +18,9 @@ module.exports = {
   // File extensions to consider
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
 
-  // Transform files with ts-jest
+  // Transform files with babel
   transform: {
-    '^.+\\.(ts|tsx)$': ['ts-jest', {
-      tsconfig: 'tsconfig.json',
-      isolatedModules: true
-    }]
+    '^.+\\.(ts|tsx)$': 'babel-jest'
   },
 
   // Module name mapping for path aliases
@@ -33,7 +30,8 @@ module.exports = {
     }),
     '^@/(.*)$': '<rootDir>/$1',
     '^@/lib/(.*)$': '<rootDir>/lib/$1',
-    '^@/app/(.*)$': '<rootDir>/app/$1'
+    '^@/app/(.*)$': '<rootDir>/app/$1',
+    '\\.(css|less|scss|sass)$': 'identity-obj-proxy'
   },
 
   // Coverage configuration
@@ -89,23 +87,9 @@ module.exports = {
   // Verbose output
   verbose: true,
 
-  // Handle static file imports
-  moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/$1'
-  },
-
   // Ignore patterns
   testPathIgnorePatterns: [
     '<rootDir>/.next/',
     '<rootDir>/node_modules/'
-  ],
-
-  // Globals for TypeScript
-  globals: {
-    'ts-jest': {
-      tsconfig: {
-        jsx: 'react-jsx'
-      }
-    }
-  }
+  ]
 };

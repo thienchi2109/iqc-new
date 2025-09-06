@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import StatusCard from '@/components/StatusCard'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/ui/Button'
 import Link from 'next/link'
 
 interface QcRun {

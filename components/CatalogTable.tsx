@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { Search, Plus, Edit, Trash2, Filter } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import CustomSelect from '@/components/ui/CustomSelect'
 import { Badge } from '@/components/ui/badge'
 import {

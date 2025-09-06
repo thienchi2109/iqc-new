@@ -21,16 +21,19 @@ process.env.NEXTAUTH_URL = 'http://localhost:3000';
 
 // Mock Next.js specific globals (only in browser environment)
 if (typeof window !== 'undefined') {
-  Object.defineProperty(window, 'location', {
-    value: {
-      href: 'http://localhost:3000',
-      origin: 'http://localhost:3000',
-      pathname: '/',
-      search: '',
-      hash: '',
-    },
-    writable: true,
-  });
+  // Only define location if it doesn't already exist
+  if (!window.location) {
+    Object.defineProperty(window, 'location', {
+      value: {
+        href: 'http://localhost:3000',
+        origin: 'http://localhost:3000',
+        pathname: '/',
+        search: '',
+        hash: '',
+      },
+      writable: true,
+    });
+  }
 }
 
 // Global test utilities

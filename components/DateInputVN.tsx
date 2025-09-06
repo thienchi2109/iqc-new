@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Calendar } from 'lucide-react'
-import { Input } from '@/components/ui/input'
+import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/label'
 
 export interface DateInputVNProps {
