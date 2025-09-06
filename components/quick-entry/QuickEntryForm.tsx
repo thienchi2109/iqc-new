@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { updateQcRunsCache, invalidateRelatedQueries } from '@/lib/query/qcRuns'
 import { useSession } from 'next-auth/react'
+import { toast } from 'sonner'
 import { Input } from '@/components/ui/Input'
 import SimpleSelect from '@/components/ui/SimpleSelect'
 import { Button } from '@/components/ui/Button'
@@ -268,32 +269,45 @@ export function QuickEntryForm({
   }, [])
 
   // Handle value change and emit ghost point
-  const handleValueChange = useCallback((index: number, value: string) => {
-    updateLevel(index, 'value', value)
+  const handleValueChange = (index: number, value: string) => {
+    setLevels(prev => {
+      const newLevels = [...prev]
+      newLevels[index] = { ...newLevels[index], value }
+      return newLevels
+    })
+  }
 
-    const level = levels[index]
-    const numericValue = parseFloat(value)
+  // Use useEffect to handle ghost point updates when levels change
+  useEffect(() => {
+    if (!onGhostPointChange || !qcLimits) return
 
-    if (onGhostPointChange && qcLimits && !isNaN(numericValue) && level.levelId) {
-      const z = computeZ(numericValue, qcLimits.mean, qcLimits.sd)
-      if (z !== null) {
-        const ghostPoint: GhostPoint = {
-          levelId: level.levelId,
-          value: numericValue,
-          z,
-          time: new Date(),
-          color: getColorForZ(z),
-          side: getSideForZ(z),
+    // Process each level for ghost points
+    levels.forEach(level => {
+      if (level.levelId && level.value) {
+        const numericValue = parseFloat(level.value)
+        if (!isNaN(numericValue)) {
+          const z = computeZ(numericValue, qcLimits.mean, qcLimits.sd)
+          if (z !== null) {
+            const ghostPoint: GhostPoint = {
+              levelId: level.levelId,
+              value: numericValue,
+              z,
+              time: new Date(),
+              color: getColorForZ(z),
+              side: getSideForZ(z),
+            }
+            onGhostPointChange(level.levelId, ghostPoint)
+          } else {
+            onGhostPointChange(level.levelId, null)
+          }
+        } else {
+          onGhostPointChange(level.levelId, null)
         }
-        onGhostPointChange(level.levelId, ghostPoint)
-      } else {
+      } else if (level.levelId) {
         onGhostPointChange(level.levelId, null)
       }
-    } else if (onGhostPointChange && level.levelId) {
-      // Clear ghost point if value is invalid or empty
-      onGhostPointChange(level.levelId, null)
-    }
-  }, [levels, qcLimits, updateLevel, computeZ, getColorForZ, getSideForZ]) // Fixed: added updateLevel dependency
+    })
+  }, [levels, qcLimits, onGhostPointChange])
 
   // Notify parent of selection changes
   useEffect(() => {
@@ -305,14 +319,14 @@ export function QuickEntryForm({
         lotId: levels[0].lotId,
       })
     }
-  }, [deviceId, testId, levels[0]?.levelId, levels[0]?.lotId]) // Fixed: only depend on specific values, not entire levels array
+  }, [deviceId, testId, levels, onSelectionChange])
 
   // Notify parent of limits changes
   useEffect(() => {
     if (onLimitsChange) {
       onLimitsChange(qcLimits || null)
     }
-  }, [qcLimits]) // Fixed: removed callback dependency
+  }, [qcLimits, onLimitsChange])
 
   const selectedTest = tests?.find((t) => t.id === testId)
 
@@ -416,10 +430,10 @@ export function QuickEntryForm({
       })
       setLevels([{ levelId: '', lotId: '', value: '', unitId: '', methodId: '', notes: '' }])
 
-      alert('Tạo lần chạy QC thành công!')
+      toast.success('Tạo lần chạy QC thành công!')
     } catch (error) {
       console.error('Lỗi khi tạo lần chạy QC:', error)
-      alert('Lỗi khi tạo lần chạy QC. Vui lòng thử lại.')
+      toast.error('Lỗi khi tạo lần chạy QC. Vui lòng thử lại.')
     }
   }
 
@@ -431,249 +445,251 @@ export function QuickEntryForm({
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Run Information */}
-        <div className="space-y-6">
-          <h3 className="text-lg font-medium text-gray-900 border-b border-gray-200 pb-2">Thông tin chung</h3>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Thiết bị *</label>
-              <SimpleSelect
-                value={deviceId}
-                onChange={(value) => setDeviceId(value)}
-                options={devices?.map((device) => ({ value: device.id, label: `${device.code} - ${device.name}` })) || []}
-                placeholder="Chọn thiết bị"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Xét nghiệm *</label>
-              <SimpleSelect
-                value={testId}
-                onChange={(value) => handleTestChange(value)}
-                options={tests?.map((test) => ({ value: test.id, label: `${test.code} - ${test.name}` })) || []}
-                placeholder="Chọn xét nghiệm"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Người thực hiện *</label>
-              {session?.user?.role === 'tech' ? (
-                <Input
-                  value={session.user.name || session.user.email || ''}
-                  disabled
-                  className="bg-gray-50"
-                />
-              ) : (
-                <SimpleSelect
-                  value={performerId}
-                  onChange={(value) => setPerformerId(value)}
-                  options={(users as User[] | undefined)?.map((user) => ({ value: user.id, label: `${user.name} (${user.username})` })) || []}
-                  placeholder="Chọn người thực hiện"
-                />
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Ngày/giờ chạy *</label>
-              <Input type="datetime-local" value={runAt} onChange={(e) => setRunAt(e.target.value)} required />
-            </div>
-          </div>
-        </div>
-
-        {/* QC Limits Display */}
-        {qcLimits && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-medium text-blue-900 mb-3">Giới hạn QC hiện tại</h4>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-sm">
-              <div className="bg-white p-3 rounded border">
-                <span className="font-medium text-blue-700 block mb-1">Mean:</span> 
-                <span className="text-lg font-mono">{qcLimits.mean.toFixed(3)}</span>
-              </div>
-              <div className="bg-white p-3 rounded border">
-                <span className="font-medium text-blue-700 block mb-1">SD:</span> 
-                <span className="text-lg font-mono">{qcLimits.sd.toFixed(3)}</span>
-              </div>
-              {qcLimits.cv && (
-                <div className="bg-white p-3 rounded border">
-                  <span className="font-medium text-blue-700 block mb-1">CV:</span> 
-                  <span className="text-lg font-mono">{qcLimits.cv.toFixed(2)}%</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Westgard Hints */}
-        <RunHints 
-          ghostPoints={ghostPointsForHints}
-          levels={levels}
-        />
-
-        {/* QC Levels */}
-        <div className="space-y-6">
-          <div className="flex justify-between items-center border-b border-gray-200 pb-2">
-            <h3 className="text-lg font-medium text-gray-900">Mức QC</h3>
-            {levels.length < 3 && (
-              <Button type="button" onClick={addLevel} variant="outline" size="sm">
-                Thêm mức
-              </Button>
-            )}
-          </div>
-
-          {levels.map((level, index) => (
-            <div key={index} className="border border-gray-200 rounded-xl bg-gray-50 overflow-hidden" data-level-card={`level-${index}`}>
-              <div className="bg-gray-100 px-6 py-3 border-b border-gray-200 flex justify-between items-center">
-                <h4 className="font-medium text-gray-900">Mức {index + 1}</h4>
-                {levels.length > 1 && (
-                  <Button type="button" onClick={() => removeLevel(index)} variant="destructive" size="sm">
-                    Xóa
-                  </Button>
-                )}
-              </div>
-
-              <div className="p-6 space-y-6 min-h-[400px]">
-                {/* Primary fields - QC Level and Lot */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Mức QC *</label>
-                    <SimpleSelect
-                      value={level.levelId}
-                      onChange={(value) => updateLevel(index, 'levelId', value)}
-                      options={qcLevels?.map((qcLevel) => ({ value: qcLevel.id, label: `${qcLevel.level} - ${qcLevel.material}` })) || []}
-                      placeholder="Chọn mức"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Lô QC *</label>
-                    <SimpleSelect
-                      value={level.lotId}
-                      onChange={(value) => updateLevel(index, 'lotId', value)}
-                      options={
-                        qcLots?.filter((lot) => lot.levelId === level.levelId).map((lot) => ({
-                          value: lot.id,
-                          label: `${lot.lotCode} (HSD: ${lot.expireDate})`,
-                        })) || []
-                      }
-                      placeholder="Chọn lô"
-                      disabled={!level.levelId}
-                    />
-                  </div>
-                </div>
-
-                {/* Value input */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* --- COLUMN 1: GENERAL INFO & HINTS --- */}
+          <div className="space-y-6">
+            {/* Run Information */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-medium text-gray-900 border-b border-gray-200 pb-2">Thông tin chung</h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Giá trị *
-                  </label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={level.value}
-                    onChange={(e) => handleValueChange(index, e.target.value)}
-                    placeholder="Nhập giá trị (ví dụ: 100.25)"
-                    required
-                    className="text-lg font-mono"
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Thiết bị *</label>
+                  <SimpleSelect
+                    value={deviceId}
+                    onChange={(value) => setDeviceId(value)}
+                    options={devices?.map((device) => ({ value: device.id, label: `${device.code} - ${device.name}` })) || []}
+                    placeholder="Chọn thiết bị"
                   />
                 </div>
 
-                {/* Secondary fields - Unit, Method, Notes with stable spacing */}
-                <div className="space-y-4 mt-6">
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="relative">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Đơn vị *</label>
-                      <SimpleSelect
-                        value={level.unitId}
-                        onChange={(value) => updateLevel(index, 'unitId', value)}
-                        options={units?.map((unit) => ({ value: unit.id, label: unit.display })) || []}
-                        placeholder="Chọn đơn vị"
-                      />
-                    </div>
-
-                    <div className="relative">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Phương pháp *</label>
-                      <SimpleSelect
-                        value={level.methodId}
-                        onChange={(value) => updateLevel(index, 'methodId', value)}
-                        options={methods?.map((method) => ({ value: method.id, label: method.name })) || []}
-                        placeholder="Chọn phương pháp"
-                      />
-                    </div>
-
-                    <div className="relative">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Ghi chú</label>
-                      <Input
-                        type="text"
-                        value={level.notes || ''}
-                        onChange={(e) => updateLevel(index, 'notes', e.target.value)}
-                        placeholder="Ghi chú tùy chọn"
-                      />
-                    </div>
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Xét nghiệm *</label>
+                  <SimpleSelect
+                    value={testId}
+                    onChange={(value) => handleTestChange(value)}
+                    options={tests?.map((test) => ({ value: test.id, label: `${test.code} - ${test.name}` })) || []}
+                    placeholder="Chọn xét nghiệm"
+                  />
                 </div>
               </div>
 
-              {/* Show Z-score and Westgard hint with stable layout */}
-              <div className="bg-white border border-gray-200 rounded-lg p-4 min-h-[120px]">
-                {qcLimits && level.value && !isNaN(parseFloat(level.value)) ? (
-                  <>
-                    <h5 className="font-medium text-gray-900 mb-2">Kết quả đánh giá</h5>
-                    <div className="text-sm">
-                      {(() => {
-                        const z = computeZ(parseFloat(level.value), qcLimits.mean, qcLimits.sd)
-                        if (z === null) return null
-                        const absZ = Math.abs(z)
-                        
-                        if (absZ > 3) {
-                          return (
-                            <div className="flex items-center space-x-2 text-red-600">
-                              <div className="w-3 h-3 bg-red-600 rounded-full"></div>
-                              <span className="font-medium">🚫 1-3s: Loại bỏ (|z| &gt; 3SD)</span>
-                            </div>
-                          )
-                        } else if (absZ > 2) {
-                          return (
-                            <div className="flex items-center space-x-2 text-orange-600">
-                              <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
-                              <span className="font-medium">⚠️ 1-2s: Cảnh báo (|z| &gt; 2SD)</span>
-                            </div>
-                          )
-                        } else if (absZ > 1) {
-                          return (
-                            <div className="flex items-center space-x-2 text-yellow-600">
-                              <div className="w-3 h-3 bg-yellow-600 rounded-full"></div>
-                              <span>💡 Chú ý (|z| &gt; 1SD)</span>
-                            </div>
-                          )
-                        } else {
-                          return (
-                            <div className="flex items-center space-x-2 text-green-600">
-                              <div className="w-3 h-3 bg-green-600 rounded-full"></div>
-                              <span>✅ Chấp nhận được (|z| ≤ 1SD)</span>
-                            </div>
-                          )
-                        }
-                      })()} 
-                    </div>
-                    {/* Z-score display - completely separate from form layout */}
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <span className="text-xs font-medium text-gray-500">Z-score:</span>
-                      <span className="ml-2 text-sm font-mono text-blue-600">
-                        {computeZ(parseFloat(level.value), qcLimits.mean, qcLimits.sd)?.toFixed(3) || 'N/A'}
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-gray-400">
-                    <span className="text-sm">Nhập giá trị để xem kết quả đánh giá</span>
-                  </div>
-                )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Người thực hiện *</label>
+                  {session?.user?.role === 'tech' ? (
+                    <Input
+                      value={session.user.name || session.user.email || ''}
+                      disabled
+                      className="bg-gray-50"
+                    />
+                  ) : (
+                    <SimpleSelect
+                      value={performerId}
+                      onChange={(value) => setPerformerId(value)}
+                      options={(users as User[] | undefined)?.map((user) => ({ value: user.id, label: `${user.name} (${user.username})` })) || []}
+                      placeholder="Chọn người thực hiện"
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Ngày/giờ chạy *</label>
+                  <Input type="datetime-local" value={runAt} onChange={(e) => setRunAt(e.target.value)} required />
+                </div>
               </div>
             </div>
-          ))}
+
+            {/* QC Limits Display */}
+            {qcLimits && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-medium text-blue-900 mb-3">Giới hạn QC hiện tại</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                  <div className="bg-white p-3 rounded border">
+                    <span className="font-medium text-blue-700 block mb-1">Mean:</span> 
+                    <span className="text-lg font-mono">{qcLimits.mean.toFixed(3)}</span>
+                  </div>
+                  <div className="bg-white p-3 rounded border">
+                    <span className="font-medium text-blue-700 block mb-1">SD:</span> 
+                    <span className="text-lg font-mono">{qcLimits.sd.toFixed(3)}</span>
+                  </div>
+                  {qcLimits.cv && (
+                    <div className="bg-white p-3 rounded border">
+                      <span className="font-medium text-blue-700 block mb-1">CV:</span> 
+                      <span className="text-lg font-mono">{qcLimits.cv.toFixed(2)}%</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Westgard Hints */}
+            <RunHints 
+              ghostPoints={ghostPointsForHints}
+              levels={levels}
+            />
+          </div>
+
+          {/* --- COLUMN 2: QC LEVELS --- */}
+          <div className="space-y-6">
+            <div className="flex justify-between items-center border-b border-gray-200 pb-2">
+              <h3 className="text-lg font-medium text-gray-900">Mức QC</h3>
+              {levels.length < 3 && (
+                <Button type="button" onClick={addLevel} variant="outline" size="sm">
+                  Thêm mức
+                </Button>
+              )}
+            </div>
+
+            {levels.map((level, index) => (
+              <div key={index} className="border border-gray-200 rounded-xl bg-gray-50 overflow-hidden" data-level-card={`level-${index}`}>
+                <div className="bg-gray-100 px-6 py-3 border-b border-gray-200 flex justify-between items-center">
+                  <h4 className="font-medium text-gray-900">Mức {index + 1}</h4>
+                  {levels.length > 1 && (
+                    <Button type="button" onClick={() => removeLevel(index)} variant="destructive" size="sm">
+                      Xóa
+                    </Button>
+                  )}
+                </div>
+
+                <div className="p-6 space-y-6">
+                  {/* Primary fields - QC Level and Lot */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Mức QC *</label>
+                      <SimpleSelect
+                        value={level.levelId}
+                        onChange={(value) => updateLevel(index, 'levelId', value)}
+                        options={qcLevels?.map((qcLevel) => ({ value: qcLevel.id, label: `${qcLevel.level} - ${qcLevel.material}` })) || []}
+                        placeholder="Chọn mức"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Lô QC *</label>
+                      <SimpleSelect
+                        value={level.lotId}
+                        onChange={(value) => updateLevel(index, 'lotId', value)}
+                        options={
+                          qcLots?.filter((lot) => lot.levelId === level.levelId).map((lot) => ({
+                            value: lot.id,
+                            label: `${lot.lotCode} (HSD: ${lot.expireDate})`,
+                          })) || []
+                        }
+                        placeholder="Chọn lô"
+                        disabled={!level.levelId}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Value input */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Giá trị *
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={level.value}
+                      onChange={(e) => handleValueChange(index, e.target.value)}
+                      placeholder="Nhập giá trị (ví dụ: 100.25)"
+                      required
+                      className="text-lg font-mono"
+                    />
+                  </div>
+
+                  {/* Secondary fields - Unit, Method, Notes with stable spacing */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Đơn vị *</label>
+                        <SimpleSelect
+                          value={level.unitId}
+                          onChange={(value) => updateLevel(index, 'unitId', value)}
+                          options={units?.map((unit) => ({ value: unit.id, label: unit.display })) || []}
+                          placeholder="Chọn đơn vị"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Phương pháp *</label>
+                        <SimpleSelect
+                          value={level.methodId}
+                          onChange={(value) => updateLevel(index, 'methodId', value)}
+                          options={methods?.map((method) => ({ value: method.id, label: method.name })) || []}
+                          placeholder="Chọn phương pháp"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Ghi chú</label>
+                        <Input
+                          type="text"
+                          value={level.notes || ''}
+                          onChange={(e) => updateLevel(index, 'notes', e.target.value)}
+                          placeholder="Ghi chú tùy chọn"
+                        />
+                    </div>
+                </div>
+
+                {/* Show Z-score and Westgard hint with stable layout */}
+                <div className="bg-white border-t border-gray-200 p-4">
+                  {qcLimits && level.value && !isNaN(parseFloat(level.value)) ? (
+                    <>
+                      <h5 className="font-medium text-gray-900 mb-2">Kết quả đánh giá</h5>
+                      <div className="text-sm">
+                        {(() => {
+                          const z = computeZ(parseFloat(level.value), qcLimits.mean, qcLimits.sd)
+                          if (z === null) return null
+                          const absZ = Math.abs(z)
+                          
+                          if (absZ > 3) {
+                            return (
+                              <div className="flex items-center space-x-2 text-red-600">
+                                <div className="w-3 h-3 bg-red-600 rounded-full"></div>
+                                <span className="font-medium">🚫 1-3s: Loại bỏ (|z| &gt; 3SD)</span>
+                              </div>
+                            )
+                          } else if (absZ > 2) {
+                            return (
+                              <div className="flex items-center space-x-2 text-orange-600">
+                                <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
+                                <span className="font-medium">⚠️ 1-2s: Cảnh báo (|z| &gt; 2SD)</span>
+                              </div>
+                            )
+                          } else if (absZ > 1) {
+                            return (
+                              <div className="flex items-center space-x-2 text-yellow-600">
+                                <div className="w-3 h-3 bg-yellow-600 rounded-full"></div>
+                                <span>💡 Chú ý (|z| &gt; 1SD)</span>
+                              </div>
+                            )
+                          } else {
+                            return (
+                              <div className="flex items-center space-x-2 text-green-600">
+                                <div className="w-3 h-3 bg-green-600 rounded-full"></div>
+                                <span>✅ Chấp nhận được (|z| ≤ 1SD)</span>
+                              </div>
+                            )
+                          }
+                        })()} 
+                      </div>
+                      {/* Z-score display - completely separate from form layout */}
+                      <div className="mt-3 pt-3 border-t border-gray-100">
+                        <span className="text-xs font-medium text-gray-500">Z-score:</span>
+                        <span className="ml-2 text-sm font-mono text-blue-600">
+                          {computeZ(parseFloat(level.value), qcLimits.mean, qcLimits.sd)?.toFixed(3) || 'N/A'}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-400">
+                      <span className="text-sm">Nhập giá trị để xem kết quả đánh giá</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Submit */}

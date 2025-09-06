@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import CustomSelect from '@/components/ui/CustomSelect'
@@ -29,7 +30,7 @@ export default function Settings() {
   const [theme, setTheme] = useState('light')
 
   const handleSave = () => {
-    alert('Settings have been saved!')
+    toast.success('Settings have been saved!')
   }
 
   return (

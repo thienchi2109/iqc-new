@@ -85,7 +85,12 @@ export const GET = withAuth(
       if (filters.status) conditions.push(eq(qcRuns.status, filters.status))
       if (filters.performerId) conditions.push(eq(qcRuns.performerId, filters.performerId))
       if (filters.from) conditions.push(gte(qcRuns.createdAt, new Date(filters.from)))
-      if (filters.to) conditions.push(lte(qcRuns.createdAt, new Date(filters.to)))
+      if (filters.to) {
+        // Convert "to" date to end of day to include all data from that day
+        const toDate = new Date(filters.to)
+        toDate.setHours(23, 59, 59, 999)
+        conditions.push(lte(qcRuns.createdAt, toDate))
+      }
       // Add approval workflow filters
       if (filters.approvalState) conditions.push(eq(qcRuns.approvalState, filters.approvalState))
       if (filters.autoResult) conditions.push(eq(qcRuns.autoResult, filters.autoResult))

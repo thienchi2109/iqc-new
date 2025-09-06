@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Input } from '@/components/ui/Input'
 import CustomSelect from '@/components/ui/CustomSelect'
 import { Button } from '@/components/ui/Button'
@@ -89,10 +90,10 @@ export default function Reports() {
       params.append('groupBy', groupBy)
 
       // Mock Excel export - in real implementation, this would download a file
-      alert('Chức năng xuất Excel sẽ được triển khai tại đây')
+      toast.success('Chức năng xuất Excel sẽ được triển khai tại đây')
     } catch (error) {
       console.error('Xuất thất bại:', error)
-      alert('Xuất thất bại. Vui lòng thử lại.')
+      toast.error('Xuất thất bại. Vui lòng thử lại.')
     }
   }
 

@@ -62,7 +62,10 @@ export const GET = withAuth(
       }
       
       if (filters.to) {
-        conditions.push(lte(auditLog.at, new Date(filters.to)))
+        // Convert "to" date to end of day to include all data from that day
+        const toDate = new Date(filters.to)
+        toDate.setHours(23, 59, 59, 999)
+        conditions.push(lte(auditLog.at, toDate))
       }
       
       if (filters.search) {
