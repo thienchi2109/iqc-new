@@ -74,7 +74,10 @@ export function useGhostPoints() {
     const z = computeZ(value, mean, sd)
     if (z === null) {
       // If invalid z-score, remove the ghost point
-      clearGhost(levelId)
+      setGhostPoints(prev => {
+        const { [levelId]: _, ...rest } = prev
+        return rest
+      })
       return
     }
 

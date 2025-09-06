@@ -184,7 +184,7 @@ const LjChartComponent = ({
 
     // Sort by timestamp for proper line connections
     return data.sort((a, b) => a.x - b.x)
-  }, [runs.length, ghostPoints.length, runs, ghostPoints]) // Optimize dependency tracking
+  }, [runs, ghostPoints]) // Optimize dependency tracking
 
   // Calculate Y-domain with ±3SD boundaries and padding
   const yDomain = React.useMemo((): [number, number] => {

@@ -307,7 +307,7 @@ export function QuickEntryForm({
         onGhostPointChange(level.levelId, null)
       }
     })
-  }, [levels, qcLimits, onGhostPointChange])
+  }, [levels, qcLimits, onGhostPointChange, computeZ, getColorForZ, getSideForZ])
 
   // Notify parent of selection changes
   useEffect(() => {
