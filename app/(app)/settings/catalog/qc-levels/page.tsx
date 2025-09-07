@@ -23,21 +23,21 @@ export default function QcLevelsPage() {
   const columns: Column<QcLevel>[] = [
     { 
       key: 'testId', 
-      label: 'Test',
+  label: 'Xét nghiệm',
       render: (testId: string) => {
         const test = tests.find(t => t.id === testId)
         return test ? `${test.code} - ${test.name}` : testId
       }
     },
-    { key: 'level', label: 'Level', sortable: true },
-    { key: 'material', label: 'Material' },
-    { key: 'isActive', label: 'Status' },
+  { key: 'level', label: 'Mức', sortable: true },
+  { key: 'material', label: 'Mô tả vật liệu' },
+  { key: 'isActive', label: 'Trạng thái' },
   ]
 
   const formFields: FormField[] = [
     {
-      name: 'testId',
-      label: 'Test',
+  name: 'testId',
+  label: 'Xét nghiệm',
       type: 'select',
       required: true,
       options: tests.map(test => ({ 
@@ -47,20 +47,20 @@ export default function QcLevelsPage() {
     },
     {
       name: 'level',
-      label: 'QC Level',
+      label: 'Mức QC',
       type: 'select',
       required: true,
       options: [
-        { value: 'L1', label: 'L1 (Level 1)' },
-        { value: 'L2', label: 'L2 (Level 2)' },
-        { value: 'L3', label: 'L3 (Level 3)' },
+        { value: 'L1', label: 'L1 (Mức 1)' },
+        { value: 'L2', label: 'L2 (Mức 2)' },
+        { value: 'L3', label: 'L3 (Mức 3)' },
       ]
     },
     {
       name: 'material',
-      label: 'Material Description',
+      label: 'Mô tả vật liệu',
       type: 'text',
-      placeholder: 'e.g., Normal, Abnormal High, Abnormal Low'
+      placeholder: 'ví dụ: Bình thường, Cao bất thường, Thấp bất thường'
     },
   ]
 
@@ -86,8 +86,8 @@ export default function QcLevelsPage() {
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">QC Levels</h1>
-        <p className="text-gray-600 mt-1">Manage quality control levels (L1, L2, L3) for tests</p>
+  <h1 className="text-3xl font-bold text-gray-900">Mức QC</h1>
+  <p className="text-gray-600 mt-1">Quản lý mức kiểm soát chất lượng (L1, L2, L3) cho các xét nghiệm</p>
       </div>
 
       <div className="mb-4">
@@ -95,7 +95,7 @@ export default function QcLevelsPage() {
           value={selectedTestId}
           onChange={(testId) => setSelectedTestId(testId)}
           tests={tests?.map(test => ({ ...test, isActive: test.isActive ?? true })) || []}
-          placeholder="Filter by test (optional)"
+          placeholder="Lọc theo xét nghiệm (tùy chọn)"
           className="max-w-md"
         />
       </div>
@@ -115,7 +115,7 @@ export default function QcLevelsPage() {
       <CatalogFormDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
-        title={editingLevel ? 'Edit QC Level' : 'Add QC Level'}
+  title={editingLevel ? 'Chỉnh sửa mức QC' : 'Thêm mức QC'}
         fields={formFields}
         onSubmit={handleSubmit}
         initialData={editingLevel || {}}

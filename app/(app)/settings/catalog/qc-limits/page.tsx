@@ -42,18 +42,18 @@ export default function QcLimitsPage() {
   })
 
   const columns: Column<any>[] = [
-    { key: 'test', label: 'Test' },
-    { key: 'device', label: 'Device' },
-    { key: 'level', label: 'Level' },
-    { key: 'lot', label: 'Lot' },
+    { key: 'test', label: 'Xét nghiệm' },
+    { key: 'device', label: 'Thiết bị' },
+    { key: 'level', label: 'Mức' },
+    { key: 'lot', label: 'Lô' },
     { 
       key: 'mean', 
-      label: 'Mean',
+      label: 'Trung bình',
       render: (mean: number) => mean?.toFixed(4) || '-'
     },
     { 
       key: 'sd', 
-      label: 'SD',
+      label: 'Độ lệch chuẩn (SD)',
       render: (sd: number) => sd?.toFixed(4) || '-'
     },
     { 
@@ -61,13 +61,13 @@ export default function QcLimitsPage() {
       label: 'CV (%)',
       render: (cv: number) => cv ? `${cv.toFixed(2)}%` : '-'
     },
-    { key: 'source', label: 'Source' },
+    { key: 'source', label: 'Nguồn' },
   ]
 
   const getFormFields = (): FormField[] => [
     {
-      name: 'testId',
-      label: 'Test',
+  name: 'testId',
+  label: 'Xét nghiệm',
       type: 'select',
       required: true,
       options: tests.map(test => ({ 
@@ -76,8 +76,8 @@ export default function QcLimitsPage() {
       }))
     },
     {
-      name: 'deviceId',
-      label: 'Device',
+  name: 'deviceId',
+  label: 'Thiết bị',
       type: 'select',
       required: true,
       options: devices.map(device => ({ 
@@ -86,8 +86,8 @@ export default function QcLimitsPage() {
       }))
     },
     {
-      name: 'levelId',
-      label: 'QC Level',
+  name: 'levelId',
+  label: 'Mức QC',
       type: 'select',
       required: true,
       options: levels.map(level => {
@@ -99,8 +99,8 @@ export default function QcLimitsPage() {
       })
     },
     {
-      name: 'lotId',
-      label: 'QC Lot',
+  name: 'lotId',
+  label: 'Lô QC',
       type: 'select',
       required: true,
       options: lots.map(lot => {
@@ -114,30 +114,30 @@ export default function QcLimitsPage() {
     },
     {
       name: 'mean',
-      label: 'Mean',
+      label: 'Trung bình',
       type: 'number',
       required: true,
       validation: { min: 0 },
-      description: 'Target mean value'
+      description: 'Giá trị trung bình mục tiêu'
     },
     {
       name: 'sd',
-      label: 'Standard Deviation (SD)',
+      label: 'Độ lệch chuẩn (SD)',
       type: 'number',
       required: true,
       validation: { min: 0 },
-      description: 'Standard deviation value'
+      description: 'Giá trị độ lệch chuẩn'
     },
     {
       name: 'source',
-      label: 'Source',
+      label: 'Nguồn',
       type: 'select',
       required: true,
       options: [
-        { value: 'manufacturer', label: 'Manufacturer' },
-        { value: 'lab', label: 'Laboratory' },
+        { value: 'manufacturer', label: 'Nhà sản xuất' },
+        { value: 'lab', label: 'Phòng xét nghiệm' },
       ],
-      description: 'Source of the statistical limits'
+      description: 'Nguồn của giới hạn thống kê'
     },
   ]
 
@@ -168,8 +168,8 @@ export default function QcLimitsPage() {
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">QC Limits</h1>
-        <p className="text-gray-600 mt-1">Manage QC statistical limits (mean, SD, CV) for test-device-lot combinations</p>
+  <h1 className="text-3xl font-bold text-gray-900">Giới hạn QC</h1>
+  <p className="text-gray-600 mt-1">Quản lý giới hạn thống kê QC (trung bình, SD, CV) cho các kết hợp xét nghiệm-thiết bị-lô</p>
       </div>
 
       <div className="mb-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -177,16 +177,16 @@ export default function QcLimitsPage() {
           className="min-w-[180px]"
           value={filters.testId}
           onChange={(value) => setFilters(prev => ({ ...prev, testId: value }))}
-          options={[{ value: '', label: 'All Tests' }, ...tests.map(test => ({ value: test.id, label: `${test.code} - ${test.name}` }))]}
-          placeholder="All Tests"
+          options={[{ value: '', label: 'Tất cả xét nghiệm' }, ...tests.map(test => ({ value: test.id, label: `${test.code} - ${test.name}` }))]}
+          placeholder="Tất cả xét nghiệm"
         />
 
         <CustomSelect
           className="min-w-[180px]"
           value={filters.deviceId}
           onChange={(value) => setFilters(prev => ({ ...prev, deviceId: value }))}
-          options={[{ value: '', label: 'All Devices' }, ...devices.map(device => ({ value: device.id, label: `${device.code} - ${device.name}` }))]}
-          placeholder="All Devices"
+          options={[{ value: '', label: 'Tất cả thiết bị' }, ...devices.map(device => ({ value: device.id, label: `${device.code} - ${device.name}` }))]}
+          placeholder="Tất cả thiết bị"
         />
 
         <CustomSelect
@@ -194,20 +194,20 @@ export default function QcLimitsPage() {
           value={filters.levelId}
           onChange={(value) => setFilters(prev => ({ ...prev, levelId: value }))}
           options={[
-            { value: '', label: 'All Levels' },
+            { value: '', label: 'Tất cả mức' },
             { value: 'L1', label: 'L1' },
             { value: 'L2', label: 'L2' },
             { value: 'L3', label: 'L3' }
           ]}
-          placeholder="All Levels"
+          placeholder="Tất cả mức"
         />
 
         <CustomSelect
           className="min-w-[160px]"
           value={filters.lotId}
           onChange={(value) => setFilters(prev => ({ ...prev, lotId: value }))}
-          options={[{ value: '', label: 'All Lots' }, ...lots.map(lot => ({ value: lot.id, label: lot.lotCode }))]}
-          placeholder="All Lots"
+          options={[{ value: '', label: 'Tất cả lô' }, ...lots.map(lot => ({ value: lot.id, label: lot.lotCode }))]}
+          placeholder="Tất cả lô"
         />
       </div>
 
@@ -218,15 +218,15 @@ export default function QcLimitsPage() {
         onAdd={() => { setEditingLimit(null); setIsDrawerOpen(true) }}
         onEdit={(limit) => { setEditingLimit(limit); setIsDrawerOpen(true) }}
         onDelete={(limit) => deleteMutation.mutate(limit.id)}
-        onSearch={setSearchQuery}
-        searchPlaceholder="Search by test, device, level, lot, or source..."
-        emptyMessage="No QC limits found. Configure your first QC limit to get started."
+  onSearch={setSearchQuery}
+  searchPlaceholder="Tìm theo xét nghiệm, thiết bị, mức, lô hoặc nguồn..."
+  emptyMessage="Không tìm thấy giới hạn QC nào. Cấu hình giới hạn QC đầu tiên để bắt đầu."
       />
 
       <CatalogFormDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
-        title={editingLimit ? 'Edit QC Limit' : 'Add QC Limit'}
+  title={editingLimit ? 'Chỉnh sửa giới hạn QC' : 'Thêm giới hạn QC'}
         fields={getFormFields()}
         onSubmit={handleSubmit}
         initialData={editingLimit || {}}

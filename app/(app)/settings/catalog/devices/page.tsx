@@ -17,20 +17,20 @@ export default function DevicesPage() {
   const deleteMutation = useDeleteDevice()
 
   const columns: Column<Device>[] = [
-    { key: 'code', label: 'Code', sortable: true },
-    { key: 'name', label: 'Name', sortable: true },
-    { key: 'manufacturer', label: 'Manufacturer' },
-    { key: 'model', label: 'Model' },
-    { key: 'department', label: 'Department' },
-    { key: 'isActive', label: 'Status' },
+  { key: 'code', label: 'Mã', sortable: true },
+  { key: 'name', label: 'Tên', sortable: true },
+  { key: 'manufacturer', label: 'Nhà sản xuất' },
+  { key: 'model', label: 'Mẫu', },
+  { key: 'department', label: 'Khoa/Phòng' },
+  { key: 'isActive', label: 'Trạng thái' },
   ]
 
   const formFields: FormField[] = [
-    { name: 'code', label: 'Device Code', type: 'text', required: true },
-    { name: 'name', label: 'Device Name', type: 'text', required: true },
-    { name: 'manufacturer', label: 'Manufacturer', type: 'text' },
-    { name: 'model', label: 'Model', type: 'text' },
-    { name: 'department', label: 'Department', type: 'text' },
+  { name: 'code', label: 'Mã thiết bị', type: 'text', required: true },
+  { name: 'name', label: 'Tên thiết bị', type: 'text', required: true },
+  { name: 'manufacturer', label: 'Nhà sản xuất', type: 'text' },
+  { name: 'model', label: 'Mẫu', type: 'text' },
+  { name: 'department', label: 'Khoa/Phòng', type: 'text' },
   ]
 
   const handleSubmit = async (formData: Record<string, any>) => {
@@ -52,8 +52,8 @@ export default function DevicesPage() {
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Devices</h1>
-        <p className="text-gray-600 mt-1">Manage laboratory instruments and analyzers</p>
+  <h1 className="text-3xl font-bold text-gray-900">Thiết bị</h1>
+  <p className="text-gray-600 mt-1">Quản lý thiết bị và máy phân tích phòng xét nghiệm</p>
       </div>
 
       <CatalogTable
@@ -71,7 +71,7 @@ export default function DevicesPage() {
       <CatalogFormDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
-        title={editingDevice ? 'Edit Device' : 'Add Device'}
+  title={editingDevice ? 'Chỉnh sửa thiết bị' : 'Thêm thiết bị'}
         fields={formFields}
         onSubmit={handleSubmit}
         initialData={editingDevice || {}}

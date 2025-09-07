@@ -16,13 +16,13 @@ interface CatalogItem {
 }
 
 const catalogItems: CatalogItem[] = [
-  { name: 'Tests', href: '/settings/catalog/tests', description: 'Manage laboratory tests and analytes', icon: '🧪' },
-  { name: 'Devices', href: '/settings/catalog/devices', description: 'Manage laboratory instruments and analyzers', icon: '🧫' },
-  { name: 'Units', href: '/settings/catalog/units', description: 'Manage measurement units', icon: '📐' },
-  { name: 'Methods', href: '/settings/catalog/methods', description: 'Manage analytical methods', icon: '⚙️' },
-  { name: 'QC Levels', href: '/settings/catalog/qc-levels', description: 'Manage quality control levels (L1, L2, L3)', icon: '📊' },
-  { name: 'QC Lots', href: '/settings/catalog/qc-lots', description: 'Manage quality control lots and batches', icon: '🏷️' },
-  { name: 'QC Limits', href: '/settings/catalog/qc-limits', description: 'Manage QC statistical limits (mean, SD, CV)', icon: '📈' },
+  { name: 'Xét nghiệm', href: '/settings/catalog/tests', description: 'Quản lý các xét nghiệm và chất phân tích', icon: '🧪' },
+  { name: 'Thiết bị', href: '/settings/catalog/devices', description: 'Quản lý thiết bị phòng xét nghiệm và máy phân tích', icon: '🧫' },
+  { name: 'Đơn vị', href: '/settings/catalog/units', description: 'Quản lý đơn vị đo', icon: '📐' },
+  { name: 'Phương pháp', href: '/settings/catalog/methods', description: 'Quản lý phương pháp phân tích', icon: '⚙️' },
+  { name: 'Mức QC', href: '/settings/catalog/qc-levels', description: 'Quản lý mức kiểm soát chất lượng (L1, L2, L3)', icon: '📊' },
+  { name: 'Lô QC', href: '/settings/catalog/qc-lots', description: 'Quản lý lô và đợt kiểm soát chất lượng', icon: '🏷️' },
+  { name: 'Giới hạn QC', href: '/settings/catalog/qc-limits', description: 'Quản lý giới hạn thống kê QC (trung bình, SD, CV)', icon: '📈' },
 ]
 
 export default function Settings() {
@@ -30,25 +30,25 @@ export default function Settings() {
   const [theme, setTheme] = useState('light')
 
   const handleSave = () => {
-    toast.success('Settings have been saved!')
+    toast.success('Cài đặt đã được lưu!')
   }
 
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Cài đặt</h1>
         <p className="text-gray-600 mt-1">
-          Manage your application settings and master data catalogs
+          Quản lý cài đặt ứng dụng và danh mục dữ liệu chính
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Application Settings */}
+        {/* Cài đặt ứng dụng */}
         <Card className="p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Application Settings</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Cài đặt ứng dụng</h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ngôn ngữ</label>
               <CustomSelect
                 value={language}
                 onChange={setLanguage}
@@ -60,7 +60,7 @@ export default function Settings() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Theme</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Giao diện</label>
               <CustomSelect
                 value={theme}
                 onChange={setTheme}
@@ -72,16 +72,16 @@ export default function Settings() {
             </div>
 
             <div className="flex justify-end">
-              <Button onClick={handleSave}>Save Changes</Button>
+              <Button onClick={handleSave}>Lưu thay đổi</Button>
             </div>
           </div>
         </Card>
 
-        {/* Master Data Catalog */}
+        {/* Danh mục dữ liệu chính */}
         <Card className="p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Master Data Catalog</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Danh mục dữ liệu chính</h2>
           <p className="text-sm text-gray-600 mb-4">
-            Manage laboratory master data including tests, devices, units, methods, and QC parameters.
+            Quản lý dữ liệu chính của phòng xét nghiệm bao gồm xét nghiệm, thiết bị, đơn vị, phương pháp và các tham số QC.
           </p>
           <div className="grid grid-cols-1 gap-3">
             {catalogItems.map((item) => (

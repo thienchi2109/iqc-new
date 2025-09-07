@@ -47,8 +47,8 @@ export default function CatalogFormDrawer({
   onSubmit,
   initialData = {},
   isLoading = false,
-  submitButtonText = 'Save',
-  cancelButtonText = 'Cancel',
+  submitButtonText = 'Lưu',
+  cancelButtonText = 'Hủy',
   size = 'md',
 }: CatalogFormDrawerProps) {
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -70,7 +70,7 @@ export default function CatalogFormDrawer({
   const validateField = (field: FormField, value: any): string | null => {
     // Required validation
     if (field.required && (!value || value.toString().trim() === '')) {
-      return `${field.label} is required`
+      return `${field.label} là bắt buộc`
     }
 
     // Skip other validations if field is empty and not required
@@ -82,20 +82,20 @@ export default function CatalogFormDrawer({
     if (field.type === 'number') {
       const numValue = Number(value)
       if (isNaN(numValue)) {
-        return `${field.label} must be a valid number`
+        return `${field.label} phải là một số hợp lệ`
       }
       if (field.validation?.min !== undefined && numValue < field.validation.min) {
-        return `${field.label} must be at least ${field.validation.min}`
+        return `${field.label} phải lớn hơn hoặc bằng ${field.validation.min}`
       }
       if (field.validation?.max !== undefined && numValue > field.validation.max) {
-        return `${field.label} must be at most ${field.validation.max}`
+        return `${field.label} phải nhỏ hơn hoặc bằng ${field.validation.max}`
       }
     }
 
     if (field.type === 'email') {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
       if (!emailRegex.test(value)) {
-        return `${field.label} must be a valid email address`
+        return `${field.label} phải là một địa chỉ email hợp lệ`
       }
     }
 
@@ -103,7 +103,7 @@ export default function CatalogFormDrawer({
     if (field.validation?.pattern) {
       const regex = new RegExp(field.validation.pattern)
       if (!regex.test(value)) {
-        return `${field.label} format is invalid`
+        return `${field.label} có định dạng không hợp lệ`
       }
     }
 

@@ -28,40 +28,40 @@ export default function TestsPage() {
   }, [searchQuery])
 
   const columns: Column<Test>[] = [
-    { key: 'code', label: 'Code', sortable: true },
-    { key: 'name', label: 'Name', sortable: true },
+    { key: 'code', label: 'Mã', sortable: true },
+    { key: 'name', label: 'Tên', sortable: true },
     { 
       key: 'defaultUnitId', 
-      label: 'Default Unit',
+      label: 'Đơn vị mặc định',
       render: (unitId: string) => units.find(u => u.id === unitId)?.display || '-'
     },
     { 
       key: 'defaultMethodId', 
-      label: 'Default Method',
+      label: 'Phương pháp mặc định',
       render: (methodId: string) => methods.find(m => m.id === methodId)?.name || '-'
     },
-    { key: 'decimals', label: 'Decimals' },
-    { key: 'isActive', label: 'Status' },
+    { key: 'decimals', label: 'Số chữ số thập phân' },
+    { key: 'isActive', label: 'Trạng thái' },
   ]
 
   const formFields: FormField[] = [
-    { name: 'code', label: 'Test Code', type: 'text', required: true },
-    { name: 'name', label: 'Test Name', type: 'text', required: true },
+    { name: 'code', label: 'Mã xét nghiệm', type: 'text', required: true },
+    { name: 'name', label: 'Tên xét nghiệm', type: 'text', required: true },
     { 
       name: 'defaultUnitId', 
-      label: 'Default Unit', 
+      label: 'Đơn vị mặc định', 
       type: 'select',
       options: units.map(unit => ({ value: unit.id, label: unit.display }))
     },
     { 
       name: 'defaultMethodId', 
-      label: 'Default Method', 
+      label: 'Phương pháp mặc định', 
       type: 'select',
       options: methods.map(method => ({ value: method.id, label: method.name }))
     },
     { 
       name: 'decimals', 
-      label: 'Decimal Places', 
+      label: 'Số chữ số thập phân', 
       type: 'number', 
       defaultValue: 2,
       validation: { min: 0, max: 6 }
@@ -87,8 +87,8 @@ export default function TestsPage() {
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Tests</h1>
-        <p className="text-gray-600 mt-1">Manage laboratory tests and analytes</p>
+  <h1 className="text-3xl font-bold text-gray-900">Xét nghiệm</h1>
+  <p className="text-gray-600 mt-1">Quản lý các xét nghiệm và chất phân tích</p>
       </div>
 
       <CatalogTable
@@ -102,13 +102,13 @@ export default function TestsPage() {
         onActiveFilterChange={setActiveFilter}
         activeFilter={activeFilter}
         onSearch={setSearchQuery}
-        searchPlaceholder="Search code, name, unit, method"
+  searchPlaceholder="Tìm mã, tên, đơn vị, phương pháp"
       />
 
       <CatalogFormDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
-        title={editingTest ? 'Edit Test' : 'Add Test'}
+  title={editingTest ? 'Chỉnh sửa xét nghiệm' : 'Thêm xét nghiệm'}
         fields={formFields}
         onSubmit={handleSubmit}
         initialData={editingTest || {}}

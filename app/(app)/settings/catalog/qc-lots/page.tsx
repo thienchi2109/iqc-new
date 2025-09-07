@@ -29,7 +29,7 @@ export default function QcLotsPage() {
   const columns: Column<QcLot>[] = [
     { 
       key: 'levelId', 
-      label: 'Test / Level',
+  label: 'Xét nghiệm / Mức',
       render: (levelId: string) => {
         const level = levels.find(l => l.id === levelId)
         if (!level) return levelId
@@ -37,25 +37,25 @@ export default function QcLotsPage() {
         return test ? `${test.code} - ${level.level}` : `${level.level}`
       }
     },
-    { key: 'lotCode', label: 'Lot Code', sortable: true },
+    { key: 'lotCode', label: 'Mã lô', sortable: true },
     { 
       key: 'expireDate', 
-      label: 'Expire Date',
+      label: 'Ngày hết hạn',
       render: (date: string) => new Date(date).toLocaleDateString('vi-VN')
     },
     { 
       key: 'effectiveFrom', 
-      label: 'Effective From',
+      label: 'Có hiệu lực từ',
       render: (date: string) => new Date(date).toLocaleDateString('vi-VN')
     },
-    { key: 'supplier', label: 'Supplier' },
+    { key: 'supplier', label: 'Nhà cung cấp' },
   ]
 
   // Get custom form fields function to access state
   const getFormFields = (): FormField[] => [
     {
-      name: 'levelId',
-      label: 'QC Level',
+  name: 'levelId',
+  label: 'Mức QC',
       type: 'select',
       required: true,
       options: levels.map(level => {
@@ -67,40 +67,40 @@ export default function QcLotsPage() {
       })
     },
     {
-      name: 'lotCode',
-      label: 'Lot Code',
+  name: 'lotCode',
+  label: 'Mã lô',
       type: 'text',
       required: true,
-      placeholder: 'e.g., LOT001, BATCH123'
+  placeholder: 'ví dụ: LOT001, BATCH123'
     },
     {
-      name: 'expireDate',
-      label: 'Expire Date',
+  name: 'expireDate',
+  label: 'Ngày hết hạn',
       type: 'date',
       required: true,
     },
     {
-      name: 'effectiveFrom',
-      label: 'Effective From',
+  name: 'effectiveFrom',
+  label: 'Có hiệu lực từ',
       type: 'date',
       required: true,
     },
     {
-      name: 'effectiveTo',
-      label: 'Effective To',
+  name: 'effectiveTo',
+  label: 'Có hiệu lực đến',
       type: 'date',
     },
     {
-      name: 'supplier',
-      label: 'Supplier',
-      type: 'text',
-      placeholder: 'e.g., Bio-Rad, Roche'
+  name: 'supplier',
+  label: 'Nhà cung cấp',
+  type: 'text',
+  placeholder: 'ví dụ: Bio-Rad, Roche'
     },
     {
-      name: 'notes',
-      label: 'Notes',
-      type: 'textarea',
-      placeholder: 'Additional information about this lot...'
+  name: 'notes',
+  label: 'Ghi chú',
+  type: 'textarea',
+  placeholder: 'Thông tin bổ sung về lô này...'
     },
   ]
 
@@ -125,8 +125,8 @@ export default function QcLotsPage() {
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">QC Lots</h1>
-        <p className="text-gray-600 mt-1">Manage quality control lots and batches</p>
+  <h1 className="text-3xl font-bold text-gray-900">Lô QC</h1>
+  <p className="text-gray-600 mt-1">Quản lý lô và đợt kiểm soát chất lượng</p>
       </div>
 
       <div className="mb-4 flex gap-4">
@@ -137,7 +137,7 @@ export default function QcLotsPage() {
             setSelectedLevelId('') // Reset level when test changes
           }}
           tests={tests?.map(test => ({ ...test, isActive: test.isActive ?? true })) || []}
-          placeholder="Filter by test (optional)"
+          placeholder="Lọc theo xét nghiệm (tùy chọn)"
           className="max-w-md"
         />
         <SelectLevel
@@ -145,7 +145,7 @@ export default function QcLotsPage() {
           onChange={(levelId) => setSelectedLevelId(levelId)}
           levels={levels?.map(level => ({ ...level, isActive: level.isActive ?? true, material: level.material ?? undefined })) || []}
           testId={selectedTestId}
-          placeholder="Filter by level (optional)"
+          placeholder="Lọc theo mức (tùy chọn)"
           className="max-w-md"
         />
       </div>
@@ -162,7 +162,7 @@ export default function QcLotsPage() {
       <CatalogFormDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
-        title={editingLot ? 'Edit QC Lot' : 'Add QC Lot'}
+  title={editingLot ? 'Chỉnh sửa lô QC' : 'Thêm lô QC'}
         fields={getFormFields()}
         onSubmit={handleSubmit}
         initialData={editingLot || {}}

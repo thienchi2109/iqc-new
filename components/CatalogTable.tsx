@@ -45,7 +45,7 @@ export default function CatalogTable<T extends { id: string; isActive?: boolean 
   data,
   columns,
   isLoading = false,
-  searchPlaceholder = 'Search...',
+  searchPlaceholder = 'Tìm kiếm...',
   onAdd,
   onEdit,
   onDelete,
@@ -53,8 +53,8 @@ export default function CatalogTable<T extends { id: string; isActive?: boolean 
   showActiveFilter = false,
   onActiveFilterChange,
   activeFilter = null,
-  addButtonLabel = 'Add New',
-  emptyMessage = 'No data found',
+  addButtonLabel = 'Thêm mới',
+  emptyMessage = 'Không có dữ liệu',
   className = '',
 }: CatalogTableProps<T>) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -88,7 +88,7 @@ export default function CatalogTable<T extends { id: string; isActive?: boolean 
     if (column.key === 'isActive' && typeof value === 'boolean') {
       return (
         <Badge variant={value ? 'default' : 'secondary'}>
-          {value ? 'Active' : 'Inactive'}
+          {value ? 'Hoạt động' : 'Không hoạt động'}
         </Badge>
       )
     }
@@ -139,9 +139,9 @@ export default function CatalogTable<T extends { id: string; isActive?: boolean 
                     onActiveFilterChange?.(value === 'all' ? null : value === 'active')
                   }}
                   options={[
-                    { value: 'all', label: 'All' },
-                    { value: 'active', label: 'Active' },
-                    { value: 'inactive', label: 'Inactive' },
+                    { value: 'all', label: 'Tất cả' },
+                    { value: 'active', label: 'Hoạt động' },
+                    { value: 'inactive', label: 'Không hoạt động' },
                   ]}
                 />
               </div>
@@ -189,7 +189,7 @@ export default function CatalogTable<T extends { id: string; isActive?: boolean 
                 </TableHead>
               ))}
               {(onEdit || onDelete) && (
-                <TableHead className="w-24">Actions</TableHead>
+                <TableHead className="w-24">Hành động</TableHead>
               )}
             </TableRow>
           </TableHeader>
@@ -244,7 +244,7 @@ export default function CatalogTable<T extends { id: string; isActive?: boolean 
       {/* Pagination would go here if needed */}
       {data.length > 0 && (
         <div className="px-4 py-3 border-t border-gray-200 text-sm text-gray-600">
-          Showing {data.length} items
+          Hiển thị {data.length} mục
         </div>
       )}
     </div>
