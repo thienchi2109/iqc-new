@@ -3,11 +3,11 @@
 import React from 'react'
 import {
   ResponsiveContainer,
-  ScatterChart,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
-  Scatter,
   ReferenceLine,
   Tooltip,
   Legend,
@@ -81,6 +81,13 @@ const LjChartComponent = ({
   className = '',
   height = 400,
 }: LjChartProps) => {
+  console.log('🎨 LjChart rendered with props:', {
+    limits,
+    ghostPoints,
+    runs: runs?.length,
+    isLoading
+  })
+  
   // Helper function to ensure numeric values from PostgreSQL
   const toNumber = (value: number | string): number => {
     if (typeof value === 'number') return value
@@ -165,6 +172,14 @@ const LjChartComponent = ({
     ghostPoints.forEach((ghost) => {
       const timestamp = ghost.time.getTime()
       
+      console.log('Processing ghost point:', {
+        levelId: ghost.levelId,
+        value: ghost.value,
+        z: ghost.z,
+        time: ghost.time,
+        timestamp
+      })
+      
       if (!Number.isFinite(timestamp) || !Number.isFinite(ghost.value)) {
         console.warn('Skipping invalid ghost point:', ghost)
         return
@@ -201,14 +216,22 @@ const LjChartComponent = ({
       return [min - padding, max + padding]
     }
 
-    // Use ±3SD with padding for line visibility
+    // Use ±3SD with padding for line visibility, but ensure ghost points are visible
     const { mean, sd } = numericLimits!
     const lower = mean - 3 * sd
     const upper = mean + 3 * sd
-    const range = upper - lower
+    
+    // Check if any data points are outside ±3SD range
+    const values = chartData.map(d => d.value).filter(Number.isFinite)
+    const dataMin = values.length > 0 ? Math.min(...values) : lower
+    const dataMax = values.length > 0 ? Math.max(...values) : upper
+    
+    const finalLower = Math.min(lower, dataMin)
+    const finalUpper = Math.max(upper, dataMax)
+    const range = finalUpper - finalLower
     const padding = range * 0.05 // 5% padding for reference line visibility
     
-    return [lower - padding, upper + padding]
+    return [finalLower - padding, finalUpper + padding]
   }, [hasValidLimits, numericLimits, chartData])
 
   // Calculate X-domain for time axis
@@ -240,14 +263,21 @@ const LjChartComponent = ({
     const data = payload[0].payload
     const isGhost = data.type === 'ghost'
     
+    console.log('🔍 Tooltip data:', { 
+      data, 
+      value: data.value, 
+      valueType: typeof data.value,
+      rawPayload: payload[0]
+    })
+    
     return (
       <div className="bg-white p-3 border border-gray-300 rounded-lg shadow-lg max-w-xs">
         <p className="font-medium text-gray-900">
-          Giá trị: {data.value.toFixed(2)}
+          Giá trị: {Number(data.value).toFixed(2)}
         </p>
         {data.z !== null && Number.isFinite(data.z) && (
           <p className="text-sm">
-            <span className="font-medium">Z-score:</span> {data.z.toFixed(3)}
+            <span className="font-medium">Z-score:</span> {Number(data.z).toFixed(3)}
           </p>
         )}
         <p className="text-sm">
@@ -340,12 +370,16 @@ const LjChartComponent = ({
       
       <div style={{ height: height - 100 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ top: 20, right: 30, bottom: 20, left: 20 }}>
+          <LineChart 
+            data={chartData} 
+            margin={{ top: 20, right: 30, bottom: 20, left: 20 }}
+          >
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             
             <XAxis
-              type="number"
               dataKey="x"
+              type="number"
+              scale="time"
               domain={xDomain}
               tickFormatter={(value) => formatDate(new Date(value))}
               stroke="#6b7280"
@@ -424,27 +458,48 @@ const LjChartComponent = ({
               </>
             )}
 
-            {/* Real points series */}
-            <Scatter
-              name="Điểm đã lưu"
+            {/* Combined data line - differentiate by dot styling */}
+            <Line
+              name="QC Data Points"
               dataKey="value"
-              data={realPoints}
-              fill="#3b82f6"
-              stroke="#2563eb"
-              strokeWidth={2}
+              stroke="transparent"
+              strokeWidth={0}
+              dot={(props: any) => {
+                const { cx, cy, payload } = props
+                if (!payload) return <g></g>
+                
+                const isGhost = payload.type === 'ghost'
+                
+                if (isGhost) {
+                  // Ghost points - hollow red dots with dashed border
+                  return (
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={4}
+                      fill="none"
+                      stroke="#ef4444"
+                      strokeWidth={2}
+                      strokeDasharray="3,3"
+                    />
+                  )
+                } else {
+                  // Real points - solid blue dots
+                  return (
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={4}
+                      fill="#3b82f6"
+                      stroke="#2563eb"
+                      strokeWidth={2}
+                    />
+                  )
+                }
+              }}
+              connectNulls={false}
             />
-
-            {/* Ghost points series - hollow dots with dashed stroke */}
-            <Scatter
-              name="Điểm tạm thời"
-              dataKey="value"
-              data={ghostPointsData}
-              fill="none"
-              stroke="#ef4444"
-              strokeWidth={2}
-              strokeDasharray="5,5"
-            />
-          </ScatterChart>
+          </LineChart>
         </ResponsiveContainer>
       </div>
 

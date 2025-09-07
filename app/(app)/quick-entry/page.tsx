@@ -4,9 +4,12 @@ import React, { useState, useCallback, useEffect, Suspense } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import QuickEntryForm from '@/components/quick-entry/QuickEntryForm'
-import { LeveyJenningsChart } from '@/components/lj/LeveyJenningsChart'
-import type { QcRun, QcLimits } from '@/components/lj/LeveyJenningsChart'
-import { useGhostPoints, GhostPoint } from '@/components/lj/useGhostPoints'
+
+interface QcLimits {
+  mean: number | string
+  sd: number | string  
+  cv?: number | string
+}
 
 interface Selection {
   deviceId: string
@@ -49,23 +52,6 @@ function QuickEntryUnified() {
       to: today.toISOString().split('T')[0]
     }
   })
-  
-  // Manual ghost points management (replacing useGhostPoints hook)
-  const [ghostPoints, setGhostPoints] = useState<{[levelId: string]: GhostPoint}>({})
-  
-  // Create clearGhost function
-  const clearGhost = useCallback((levelId: string) => {
-    setGhostPoints(prev => {
-      const newState = { ...prev }
-      delete newState[levelId]
-      return newState
-    })
-  }, [])
-  
-  // Create getAllGhosts function to match the hook interface
-  const getAllGhosts = useCallback(() => {
-    return Object.values(ghostPoints)
-  }, [ghostPoints])
 
   // Update URL when state changes
   const updateURL = useCallback((newSelection: Selection | null, newDateRange?: { from: string; to: string }) => {
@@ -88,39 +74,6 @@ function QuickEntryUnified() {
     router.replace(newURL, { scroll: false })
   }, [router, dateRange])
 
-  // Fetch historical QC runs for the chart
-  const { data: qcRuns = [], isLoading: runsLoading } = useQuery<QcRun[]>({
-    queryKey: ['qc-runs', selection?.deviceId, selection?.testId, selection?.levelId, selection?.lotId, dateRange.from, dateRange.to],
-    queryFn: async () => {
-      if (!selection) return []
-      const params = new URLSearchParams({
-        deviceId: selection.deviceId,
-        testId: selection.testId,
-        levelId: selection.levelId,
-        lotId: selection.lotId,
-        from: dateRange.from,
-        to: dateRange.to,
-        limit: '100', // Last 100 runs
-      })
-      const response = await fetch(`/api/qc/runs?${params}`)
-      if (!response.ok) return []
-      return response.json()
-    },
-    enabled: !!(selection?.deviceId && selection?.testId && selection?.levelId && selection?.lotId),
-  })
-
-  const handleGhostPointChange = useCallback((levelId: string, ghostPoint: GhostPoint | null) => {
-    if (ghostPoint) {
-      // Use the pre-calculated ghost point directly instead of recalculating
-      setGhostPoints(prev => ({
-        ...prev,
-        [levelId]: ghostPoint,
-      }))
-    } else {
-      clearGhost(levelId)
-    }
-  }, [clearGhost])
-
   const handleSelectionChange = useCallback((newSelection: Selection) => {
     setSelection(newSelection)
     updateURL(newSelection)
@@ -136,53 +89,44 @@ function QuickEntryUnified() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Quick Entry - Nhập QC nhanh</h1>
         <p className="text-gray-600 mt-1">
-          Giao diện nhập liệu QC tối ưu với xem trước biểu đồ L-J trực tiếp
+          Giao diện nhập liệu QC tối ưu với tính toán và đánh giá tự động
         </p>
       </div>
 
-      {/* Row 1: Quick Entry Form */}
+      {/* QC Limits Info */}
+      {limits && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 className="text-lg font-medium text-blue-900 mb-2">Giới hạn QC hiện tại</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+            <div>
+              <span className="font-medium text-blue-700">Mean:</span>
+              <span className="ml-2 font-mono">{Number(limits.mean).toFixed(2)}</span>
+            </div>
+            <div>
+              <span className="font-medium text-blue-700">SD:</span>
+              <span className="ml-2 font-mono">{Number(limits.sd).toFixed(3)}</span>
+            </div>
+            <div>
+              <span className="font-medium text-blue-700">CV:</span>
+              <span className="ml-2 font-mono">{limits.cv ? `${Number(limits.cv).toFixed(1)}%` : 'N/A'}</span>
+            </div>
+            <div>
+              <span className="font-medium text-blue-700">Range:</span>
+              <span className="ml-2 font-mono">
+                {(Number(limits.mean) - 3 * Number(limits.sd)).toFixed(2)} - {(Number(limits.mean) + 3 * Number(limits.sd)).toFixed(2)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Entry Form */}
       <div className="bg-white rounded-lg border shadow-sm p-6">
         <QuickEntryForm
-          onGhostPointChange={handleGhostPointChange}
           onSelectionChange={handleSelectionChange}
           onLimitsChange={handleLimitsChange}
         />
       </div>
-
-      {/* Row 2: Full-width L-J Chart Preview */}
-      <div className="bg-white rounded-lg border shadow-sm">
-        <div className="h-[520px]">
-          <LeveyJenningsChart
-            limits={limits ? { mean: limits.mean, sd: limits.sd } : undefined}
-            runs={qcRuns}
-            title="Biểu đồ Levey-Jennings - Xem trước trực tiếp"
-            className="h-full"
-            height={520}
-          />
-        </div>
-      </div>
-
-      {/* Ghost Points Summary */}
-      {getAllGhosts().length > 0 && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-gray-900 mb-2">Điểm tạm thời hiện tại:</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {getAllGhosts().map((ghost, index) => (
-              <div key={ghost.levelId} className="text-sm">
-                <div className="flex items-center space-x-2">
-                  <div 
-                    className="w-3 h-3 rounded-full border-2 border-dashed"
-                    style={{ borderColor: ghost.color }}
-                  ></div>
-                  <span className="font-medium">Mức {index + 1}:</span>
-                  <span>{ghost.value.toFixed(3)}</span>
-                  <span className="text-gray-500">(Z: {ghost.z.toFixed(3)})</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

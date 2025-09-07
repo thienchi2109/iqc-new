@@ -74,7 +74,6 @@ interface LevelEntry {
 }
 
 export interface QuickEntryFormProps {
-  onGhostPointChange?: (levelId: string, ghostPoint: GhostPoint | null) => void
   onSelectionChange?: (selection: {
     deviceId: string
     testId: string
@@ -86,7 +85,6 @@ export interface QuickEntryFormProps {
 }
 
 export function QuickEntryForm({
-  onGhostPointChange,
   onSelectionChange,
   onLimitsChange,
   className = '',
@@ -159,23 +157,67 @@ export function QuickEntryForm({
     enabled: levels.some((l) => l.levelId),
   })
 
-  // QC limits for ghost point calculation
+  // QC limits for ghost point calculation - more flexible approach
   const { data: qcLimits } = useQuery<QcLimits>({
     queryKey: ['qc-limits', deviceId, testId, levels[0]?.levelId, levels[0]?.lotId],
     queryFn: async () => {
-      if (!deviceId || !testId || !levels[0]?.levelId || !levels[0]?.lotId) return null
+      if (!deviceId || !testId || !levels[0]?.levelId) return null
       const params = new URLSearchParams({
         deviceId,
         testId,
         levelId: levels[0].levelId,
-        lotId: levels[0].lotId,
       })
+      // Include lotId if available for more precise limits
+      if (levels[0]?.lotId) {
+        params.append('lotId', levels[0].lotId)
+      }
       const response = await fetch(`/api/qc/limits?${params}`)
       if (!response.ok) return null
       const data = await response.json()
       return data[0] || null
     },
-    enabled: !!(deviceId && testId && levels[0]?.levelId && levels[0]?.lotId),
+    enabled: !!(deviceId && testId && levels[0]?.levelId),
+  })
+
+  // Additional QC limits for other levels when they exist
+  const { data: qcLimitsLevel2 } = useQuery<QcLimits>({
+    queryKey: ['qc-limits', deviceId, testId, levels[1]?.levelId, levels[1]?.lotId],
+    queryFn: async () => {
+      if (!deviceId || !testId || !levels[1]?.levelId) return null
+      const params = new URLSearchParams({
+        deviceId,
+        testId,
+        levelId: levels[1].levelId,
+      })
+      if (levels[1]?.lotId) {
+        params.append('lotId', levels[1].lotId)
+      }
+      const response = await fetch(`/api/qc/limits?${params}`)
+      if (!response.ok) return null
+      const data = await response.json()
+      return data[0] || null
+    },
+    enabled: !!(deviceId && testId && levels[1]?.levelId),
+  })
+
+  const { data: qcLimitsLevel3 } = useQuery<QcLimits>({
+    queryKey: ['qc-limits', deviceId, testId, levels[2]?.levelId, levels[2]?.lotId],
+    queryFn: async () => {
+      if (!deviceId || !testId || !levels[2]?.levelId) return null
+      const params = new URLSearchParams({
+        deviceId,
+        testId,
+        levelId: levels[2].levelId,
+      })
+      if (levels[2]?.lotId) {
+        params.append('lotId', levels[2].lotId)
+      }
+      const response = await fetch(`/api/qc/limits?${params}`)
+      if (!response.ok) return null
+      const data = await response.json()
+      return data[0] || null
+    },
+    enabled: !!(deviceId && testId && levels[2]?.levelId),
   })
 
   // Mutations
@@ -202,11 +244,6 @@ export function QuickEntryForm({
       return response.json()
     },
     onSuccess: (data, variables) => {
-      // Clear ghost point for this level after successful save
-      if (onGhostPointChange) {
-        onGhostPointChange(variables.levelId, null)
-      }
-      
       // Update cache with new QC run
       if (data.run) {
         // Convert API response to QcRun format
@@ -277,38 +314,6 @@ export function QuickEntryForm({
     })
   }
 
-  // Use useEffect to handle ghost point updates when levels change
-  useEffect(() => {
-    if (!onGhostPointChange || !qcLimits) return
-
-    // Process each level for ghost points
-    levels.forEach(level => {
-      if (level.levelId && level.value) {
-        const numericValue = parseFloat(level.value)
-        if (!isNaN(numericValue)) {
-          const z = computeZ(numericValue, qcLimits.mean, qcLimits.sd)
-          if (z !== null) {
-            const ghostPoint: GhostPoint = {
-              levelId: level.levelId,
-              value: numericValue,
-              z,
-              time: new Date(),
-              color: getColorForZ(z),
-              side: getSideForZ(z),
-            }
-            onGhostPointChange(level.levelId, ghostPoint)
-          } else {
-            onGhostPointChange(level.levelId, null)
-          }
-        } else {
-          onGhostPointChange(level.levelId, null)
-        }
-      } else if (level.levelId) {
-        onGhostPointChange(level.levelId, null)
-      }
-    })
-  }, [levels, qcLimits, onGhostPointChange, computeZ, getColorForZ, getSideForZ])
-
   // Notify parent of selection changes
   useEffect(() => {
     if (onSelectionChange && deviceId && testId && levels[0]?.levelId && levels[0]?.lotId) {
@@ -321,7 +326,7 @@ export function QuickEntryForm({
     }
   }, [deviceId, testId, levels, onSelectionChange])
 
-  // Notify parent of limits changes
+  // Notify parent of limits changes (use first level's limits as primary)
   useEffect(() => {
     if (onLimitsChange) {
       onLimitsChange(qcLimits || null)
@@ -348,25 +353,23 @@ export function QuickEntryForm({
 
   const removeLevel = (index: number) => {
     if (levels.length > 1) {
-      const level = levels[index]
-      // Clear ghost point when removing level
-      if (onGhostPointChange && level.levelId) {
-        onGhostPointChange(level.levelId, null)
-      }
       setLevels(levels.filter((_, i) => i !== index))
     }
   }
 
   // Memoize ghost points calculation to prevent expensive re-calculations
   const ghostPointsForHints = useMemo(() => {
-    if (!qcLimits) return []
+    const limitsMap = [qcLimits, qcLimitsLevel2, qcLimitsLevel3]
     
     return levels.map((level, index) => {
       if (!level.value || !level.levelId) return null
       const numericValue = parseFloat(level.value)
       if (isNaN(numericValue)) return null
       
-      const z = computeZ(numericValue, qcLimits.mean, qcLimits.sd)
+      const levelLimits = limitsMap[index]
+      if (!levelLimits) return null
+      
+      const z = computeZ(numericValue, levelLimits.mean, levelLimits.sd)
       if (z === null) return null
       
       return {
@@ -378,7 +381,7 @@ export function QuickEntryForm({
         side: getSideForZ(z),
       } as GhostPoint
     }).filter(Boolean) as GhostPoint[]
-  }, [levels, qcLimits, computeZ, getColorForZ, getSideForZ])
+  }, [levels, qcLimits, qcLimitsLevel2, qcLimitsLevel3, computeZ, getColorForZ, getSideForZ])
 
   const handleTestChange = (newTestId: string) => {
     setTestId(newTestId)
@@ -588,13 +591,16 @@ export function QuickEntryForm({
                       Giá trị *
                     </label>
                     <Input
-                      type="number"
-                      step="0.01"
+                      type="text"
                       value={level.value}
-                      onChange={(e) => handleValueChange(index, e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        handleValueChange(index, value)
+                      }}
                       placeholder="Nhập giá trị (ví dụ: 100.25)"
                       required
                       className="text-lg font-mono"
+                      pattern="[0-9]*\.?[0-9]*"
                     />
                   </div>
 
@@ -633,59 +639,64 @@ export function QuickEntryForm({
 
                 {/* Show Z-score and Westgard hint with stable layout */}
                 <div className="bg-white border-t border-gray-200 p-4">
-                  {qcLimits && level.value && !isNaN(parseFloat(level.value)) ? (
-                    <>
-                      <h5 className="font-medium text-gray-900 mb-2">Kết quả đánh giá</h5>
-                      <div className="text-sm">
-                        {(() => {
-                          const z = computeZ(parseFloat(level.value), qcLimits.mean, qcLimits.sd)
-                          if (z === null) return null
-                          const absZ = Math.abs(z)
-                          
-                          if (absZ > 3) {
-                            return (
-                              <div className="flex items-center space-x-2 text-red-600">
-                                <div className="w-3 h-3 bg-red-600 rounded-full"></div>
-                                <span className="font-medium">🚫 1-3s: Loại bỏ (|z| &gt; 3SD)</span>
-                              </div>
-                            )
-                          } else if (absZ > 2) {
-                            return (
-                              <div className="flex items-center space-x-2 text-orange-600">
-                                <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
-                                <span className="font-medium">⚠️ 1-2s: Cảnh báo (|z| &gt; 2SD)</span>
-                              </div>
-                            )
-                          } else if (absZ > 1) {
-                            return (
-                              <div className="flex items-center space-x-2 text-yellow-600">
-                                <div className="w-3 h-3 bg-yellow-600 rounded-full"></div>
-                                <span>💡 Chú ý (|z| &gt; 1SD)</span>
-                              </div>
-                            )
-                          } else {
-                            return (
-                              <div className="flex items-center space-x-2 text-green-600">
-                                <div className="w-3 h-3 bg-green-600 rounded-full"></div>
-                                <span>✅ Chấp nhận được (|z| ≤ 1SD)</span>
-                              </div>
-                            )
-                          }
-                        })()} 
+                  {(() => {
+                    const limitsMap = [qcLimits, qcLimitsLevel2, qcLimitsLevel3]
+                    const levelLimits = limitsMap[index]
+                    
+                    return levelLimits && level.value && !isNaN(parseFloat(level.value)) ? (
+                      <>
+                        <h5 className="font-medium text-gray-900 mb-2">Kết quả đánh giá</h5>
+                        <div className="text-sm">
+                          {(() => {
+                            const z = computeZ(parseFloat(level.value), levelLimits.mean, levelLimits.sd)
+                            if (z === null) return null
+                            const absZ = Math.abs(z)
+                            
+                            if (absZ > 3) {
+                              return (
+                                <div className="flex items-center space-x-2 text-red-600">
+                                  <div className="w-3 h-3 bg-red-600 rounded-full"></div>
+                                  <span className="font-medium">🚫 1-3s: Loại bỏ (|z| &gt; 3SD)</span>
+                                </div>
+                              )
+                            } else if (absZ > 2) {
+                              return (
+                                <div className="flex items-center space-x-2 text-orange-600">
+                                  <div className="w-3 h-3 bg-orange-600 rounded-full"></div>
+                                  <span className="font-medium">⚠️ 1-2s: Cảnh báo (|z| &gt; 2SD)</span>
+                                </div>
+                              )
+                            } else if (absZ > 1) {
+                              return (
+                                <div className="flex items-center space-x-2 text-yellow-600">
+                                  <div className="w-3 h-3 bg-yellow-600 rounded-full"></div>
+                                  <span>💡 Chú ý (|z| &gt; 1SD)</span>
+                                </div>
+                              )
+                            } else {
+                              return (
+                                <div className="flex items-center space-x-2 text-green-600">
+                                  <div className="w-3 h-3 bg-green-600 rounded-full"></div>
+                                  <span>✅ Chấp nhận được (|z| ≤ 1SD)</span>
+                                </div>
+                              )
+                            }
+                          })()} 
+                        </div>
+                        {/* Z-score display - completely separate from form layout */}
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <span className="text-xs font-medium text-gray-500">Z-score:</span>
+                          <span className="ml-2 text-sm font-mono text-blue-600">
+                            {computeZ(parseFloat(level.value), levelLimits.mean, levelLimits.sd)?.toFixed(3) || 'N/A'}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-gray-400">
+                        <span className="text-sm">Nhập giá trị để xem kết quả đánh giá</span>
                       </div>
-                      {/* Z-score display - completely separate from form layout */}
-                      <div className="mt-3 pt-3 border-t border-gray-100">
-                        <span className="text-xs font-medium text-gray-500">Z-score:</span>
-                        <span className="ml-2 text-sm font-mono text-blue-600">
-                          {computeZ(parseFloat(level.value), qcLimits.mean, qcLimits.sd)?.toFixed(3) || 'N/A'}
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-gray-400">
-                      <span className="text-sm">Nhập giá trị để xem kết quả đánh giá</span>
-                    </div>
-                  )}
+                    )
+                  })()}
                 </div>
               </div>
             ))}
@@ -700,13 +711,6 @@ export function QuickEntryForm({
               variant="outline"
               className="w-full sm:w-auto"
               onClick={() => {
-                // Clear all ghost points when resetting form
-                levels.forEach((level) => {
-                  if (onGhostPointChange && level.levelId) {
-                    onGhostPointChange(level.levelId, null)
-                  }
-                })
-                
                 setDeviceId('')
                 setTestId('')
                 setPerformerId(session?.user?.id || '')
