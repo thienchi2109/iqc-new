@@ -47,8 +47,19 @@ export function useCreateQcLevel() {
       })
       
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to create QC level')
+        // try to read JSON body for structured error information
+        let errorBody: any = null
+        try {
+          errorBody = await response.json()
+        } catch (e) {
+          // ignore JSON parse errors
+        }
+
+        const message = errorBody?.message || 'Failed to create QC level'
+        const err = new Error(message)
+        // attach body for callers that want programmatic access
+        ;(err as any).body = errorBody
+        throw err
       }
       
       return response.json()
@@ -72,8 +83,15 @@ export function useUpdateQcLevel() {
       })
       
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to update QC level')
+        let errorBody: any = null
+        try {
+          errorBody = await response.json()
+        } catch (e) {}
+
+        const message = errorBody?.message || 'Failed to update QC level'
+        const err = new Error(message)
+        ;(err as any).body = errorBody
+        throw err
       }
       
       return response.json()
@@ -95,8 +113,15 @@ export function useDeleteQcLevel() {
       })
       
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to delete QC level')
+        let errorBody: any = null
+        try {
+          errorBody = await response.json()
+        } catch (e) {}
+
+        const message = errorBody?.message || 'Failed to delete QC level'
+        const err = new Error(message)
+        ;(err as any).body = errorBody
+        throw err
       }
       
       return response.json()

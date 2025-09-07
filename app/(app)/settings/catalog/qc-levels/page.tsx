@@ -68,7 +68,10 @@ export default function QcLevelsPage() {
     const data = {
       testId: formData.testId,
       level: formData.level as 'L1' | 'L2' | 'L3',
-      material: formData.material || null,
+      // send undefined when material is empty so backend Zod schema (string | undefined) is satisfied
+      material: formData.material === undefined || formData.material === null || formData.material === ''
+        ? undefined
+        : formData.material,
     }
 
     if (editingLevel) {
