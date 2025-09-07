@@ -19,13 +19,19 @@ import { format } from "date-fns"
 
 export interface QcRun {
   id: string
-  created_at: string | Date
+  createdAt: string | Date
+  created_at?: string | Date // Keep for backward compatibility
   value: number
-  z_score?: number
-  auto_result: "pass" | "warn" | "fail"
-  approval_state: "pending" | "approved" | "rejected"
-  performer_name?: string
-  lot_code?: string
+  z?: number
+  z_score?: number // Keep for backward compatibility  
+  autoResult?: "pass" | "warn" | "fail"
+  auto_result?: "pass" | "warn" | "fail" // Keep for backward compatibility
+  approvalState?: "pending" | "approved" | "rejected"
+  approval_state?: "pending" | "approved" | "rejected" // Keep for backward compatibility
+  performerName?: string
+  performer_name?: string // Keep for backward compatibility
+  lotCode?: string
+  lot_code?: string // Keep for backward compatibility
   violations?: { rule_code: string }[]
 }
 
@@ -52,6 +58,51 @@ interface LeveyJenningsChartProps {
 
 const formatDateTick = (tickItem: number) => {
   return format(new Date(tickItem), "dd/MM")
+}
+
+// Get point color based on auto_result status
+const getPointColor = (autoResult?: string): string => {
+  switch (autoResult) {
+    case 'fail': return '#dc2626' // red-600
+    case 'warn': return '#ea580c' // orange-600  
+    case 'pass': return '#16a34a' // green-600
+    default: return '#3b82f6' // blue-600 (default)
+  }
+}
+
+// Custom dot component that renders different colors based on auto_result
+const CustomDot = (props: DotProps & { payload?: any }) => {
+  const { cx, cy, payload } = props
+  
+  if (!payload || !payload.run) {
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={4}
+        fill="#3b82f6"
+        stroke="#3b82f6"
+        strokeWidth={2}
+        opacity={0.8}
+      />
+    );
+  }
+  
+  // Handle both camelCase (from API) and snake_case (legacy) field names
+  const autoResult = payload.run.autoResult || payload.run.auto_result;
+  const color = getPointColor(autoResult);
+  
+  return (
+    <circle
+      cx={cx}
+      cy={cy}
+      r={4}
+      fill={color}
+      stroke={color}
+      strokeWidth={2}
+      opacity={0.8}
+    />
+  )
 }
 
 const CustomTooltipContent = ({ active, payload }: any) => {
@@ -101,9 +152,9 @@ const CustomTooltipContent = ({ active, payload }: any) => {
             }
           })()}
         </p>
-        {run.z_score && (
+        {(run.z || run.z_score) && (
           <p className="text-gray-600">
-            Z-score: {run.z_score.toFixed(2)}
+            Z-score: {(run.z || run.z_score)?.toFixed(2)}
           </p>
         )}
         <div className="mt-2 space-y-1">
@@ -116,9 +167,9 @@ const CustomTooltipContent = ({ active, payload }: any) => {
           <div className="flex items-center">
             <span
               className={`mr-2 ${
-                run.auto_result === "fail"
+                (run.autoResult || run.auto_result) === "fail"
                   ? "text-red-500"
-                  : run.auto_result === "warn"
+                  : (run.autoResult || run.auto_result) === "warn"
                   ? "text-orange-500"
                   : "text-green-500"
               }`}
@@ -127,9 +178,9 @@ const CustomTooltipContent = ({ active, payload }: any) => {
             </span>
             <span>
               Tự động:{" "}
-              {run.auto_result === "pass"
+              {(run.autoResult || run.auto_result) === "pass"
                 ? "Đạt"
-                : run.auto_result === "warn"
+                : (run.autoResult || run.auto_result) === "warn"
                 ? "Cảnh báo"
                 : "Vi phạm"}
             </span>
@@ -137,9 +188,9 @@ const CustomTooltipContent = ({ active, payload }: any) => {
           <div className="flex items-center">
             <span
               className={`mr-2 ${
-                run.approval_state === "approved"
+                (run.approvalState || run.approval_state) === "approved"
                   ? "text-green-600"
-                  : run.approval_state === "rejected"
+                  : (run.approvalState || run.approval_state) === "rejected"
                   ? "text-red-600"
                   : "text-gray-500"
               }`}
@@ -148,17 +199,17 @@ const CustomTooltipContent = ({ active, payload }: any) => {
             </span>
             <span>
               Trạng thái:{" "}
-              {run.approval_state === "approved"
+              {(run.approvalState || run.approval_state) === "approved"
                 ? "Đã duyệt"
-                : run.approval_state === "rejected"
+                : (run.approvalState || run.approval_state) === "rejected"
                 ? "Bị loại"
                 : "Chờ duyệt"}
             </span>
           </div>
         </div>
-        {run.performer_name && (
+        {(run.performerName || run.performer_name) && (
           <p className="mt-2 border-t pt-2 text-gray-500">
-            Người thực hiện: {run.performer_name}
+            Người thực hiện: {run.performerName || run.performer_name}
           </p>
         )}
       </div>
@@ -184,8 +235,9 @@ export const LeveyJenningsChart: React.FC<LeveyJenningsChartProps> = ({
       let timestamp = 0;
       
       try {
-        if (run.created_at) {
-          const date = new Date(run.created_at);
+        const dateValue = run.createdAt || run.created_at;
+        if (dateValue) {
+          const date = new Date(dateValue);
           if (!isNaN(date.getTime())) {
             timestamp = date.getTime();
             formattedDate = format(date, "dd/MM HH:mm");
@@ -272,14 +324,35 @@ export const LeveyJenningsChart: React.FC<LeveyJenningsChartProps> = ({
             type="monotone"
             dataKey="value"
             name="Giá trị QC"
-            stroke="#3b82f6"
+            stroke="#6b7280"
+            strokeOpacity={0.5}
             strokeWidth={2}
-            dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
+            dot={<CustomDot />}
             activeDot={{ r: 8 }}
             connectNulls={false}
           />
         </LineChart>
       </ResponsiveContainer>
+      
+      {/* Color Legend for Auto Result Status */}
+      <div className="mt-4 flex flex-wrap gap-4 text-xs text-gray-600 border-t pt-3">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded-full bg-green-600"></div>
+          <span>Đạt (Pass)</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded-full bg-orange-600"></div>
+          <span>Cảnh báo (Warn)</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded-full bg-red-600"></div>
+          <span>Vi phạm (Fail)</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+          <span>Chưa xác định</span>
+        </div>
+      </div>
     </div>
   )
 }

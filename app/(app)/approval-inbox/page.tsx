@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/Button'
@@ -18,6 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { BulkToolbar } from '@/components/BulkToolbar'
+import { BulkRejectModal } from '@/components/BulkRejectModal'
 import {
   Table,
   TableBody,
@@ -26,8 +28,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { CheckIcon, XIcon, ClockIcon, AlertTriangleIcon } from 'lucide-react'
 import { toast } from 'sonner'
+import { CheckIcon, XIcon, ClockIcon, AlertTriangleIcon } from 'lucide-react'
 
 interface PendingRun {
   id: string
@@ -79,12 +81,23 @@ export default function ApprovalInboxPage() {
   const [debouncedFilters, setDebouncedFilters] = useState(filters)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  
+  // Bulk selection state (scoped to current page)
+  const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(new Set())
+  
+  // Bulk operations state
+  const [isBulkRejectModalOpen, setIsBulkRejectModalOpen] = useState(false)
 
   // Debounce filters for 300ms to avoid excessive queries
   useEffect(() => {
     const t = setTimeout(() => setDebouncedFilters(filters), 300)
     return () => clearTimeout(t)
   }, [filters])
+
+  // Reset selection when page or filters change
+  useEffect(() => {
+    setSelectedRunIds(new Set())
+  }, [page, debouncedFilters])
 
   // Check if approval gate is enabled
   const useApprovalGate = process.env.NEXT_PUBLIC_USE_APPROVAL_GATE !== 'false'
@@ -159,6 +172,118 @@ export default function ApprovalInboxPage() {
     },
   })
 
+  // Bulk approve mutation
+  const bulkApproveMutation = useMutation({
+    mutationFn: async (runIds: string[]) => {
+      const response = await fetch('/api/qc/runs/bulk-approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runIds }),
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Không thể duyệt hàng loạt')
+      }
+      
+      return response.json()
+    },
+    onSuccess: (data) => {
+      const { successCount, failureCount, errors } = data
+      if (successCount > 0) {
+        toast.success(`Đã duyệt thành công ${successCount} lần chạy QC`)
+      }
+      if (failureCount > 0) {
+        toast.warning(`${failureCount} lần chạy không thể duyệt`)
+        // Optionally show specific errors in console for debugging
+        if (errors?.length > 0) {
+          console.warn('Bulk approve errors:', errors)
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['pending-runs'] })
+      queryClient.invalidateQueries({ queryKey: ['qc-runs'] })
+      setSelectedRunIds(new Set())
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
+
+  // Bulk reject mutation
+  const bulkRejectMutation = useMutation({
+    mutationFn: async ({ runIds, note }: { runIds: string[], note: string }) => {
+      const response = await fetch('/api/qc/runs/bulk-reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runIds, note }),
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Không thể từ chối hàng loạt')
+      }
+      
+      return response.json()
+    },
+    onSuccess: (data) => {
+      const { successCount, failureCount, errors } = data
+      if (successCount > 0) {
+        toast.success(`Đã từ chối thành công ${successCount} lần chạy QC`)
+      }
+      if (failureCount > 0) {
+        toast.warning(`${failureCount} lần chạy không thể từ chối`)
+        // Optionally show specific errors in console for debugging
+        if (errors?.length > 0) {
+          console.warn('Bulk reject errors:', errors)
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['pending-runs'] })
+      queryClient.invalidateQueries({ queryKey: ['qc-runs'] })
+      setSelectedRunIds(new Set())
+      setIsBulkRejectModalOpen(false)
+    },
+    onError: (error) => {
+      toast.error(error.message)
+      setIsBulkRejectModalOpen(false)
+    },
+  })
+
+  // Bulk selection handlers (must be before keyboard shortcuts)
+  const handleSelectAll = useCallback((checked: boolean) => {
+    if (checked) {
+      // Select all pending runs on current page
+      const pendingRunIds = runsResult?.data
+        .filter(run => run.approvalState === 'pending')
+        .map(run => run.id) || []
+      setSelectedRunIds(new Set(pendingRunIds))
+    } else {
+      setSelectedRunIds(new Set())
+    }
+  }, [runsResult?.data])
+
+  // Keyboard shortcuts (must be before any early returns)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle shortcuts if we have permission and approval gate is enabled
+      if (!canApprove || !useApprovalGate) return
+      
+      const currentPagePendingRuns = runsResult?.data?.filter(run => run.approvalState === 'pending') || []
+      
+      // Ctrl/Cmd + A to select all on current page
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a' && currentPagePendingRuns.length > 0) {
+        e.preventDefault()
+        handleSelectAll(true)
+      }
+      // Escape to clear selection
+      if (e.key === 'Escape' && selectedRunIds.size > 0) {
+        setSelectedRunIds(new Set())
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [canApprove, useApprovalGate, runsResult?.data, selectedRunIds.size, handleSelectAll])
+
   // Guard clause for access control (after hooks)
   if (!canApprove || !useApprovalGate) {
     return (
@@ -195,6 +320,47 @@ export default function ApprovalInboxPage() {
       approvalNote: approvalNote.trim() || undefined,
     })
   }
+
+  const handleSelectRun = (runId: string, checked: boolean) => {
+    const newSelection = new Set(selectedRunIds)
+    if (checked) {
+      newSelection.add(runId)
+    } else {
+      newSelection.delete(runId)
+    }
+    setSelectedRunIds(newSelection)
+  }
+
+  // Calculate selection state for current page
+  const currentPagePendingRuns = runsResult?.data.filter(run => run.approvalState === 'pending') || []
+  const selectedPendingCount = currentPagePendingRuns.filter(run => selectedRunIds.has(run.id)).length
+  const isAllSelected = currentPagePendingRuns.length > 0 && selectedPendingCount === currentPagePendingRuns.length
+  const isPartiallySelected = selectedPendingCount > 0 && selectedPendingCount < currentPagePendingRuns.length
+
+  // Bulk action handlers
+  const handleBulkApprove = () => {
+    const selectedRunIdsArray = Array.from(selectedRunIds)
+    if (selectedRunIdsArray.length === 0) {
+      toast.error('Vui lòng chọn ít nhất một lần chạy để duyệt')
+      return
+    }
+    bulkApproveMutation.mutate(selectedRunIdsArray)
+  }
+
+  const handleBulkReject = () => {
+    if (selectedRunIds.size === 0) {
+      toast.error('Vui lòng chọn ít nhất một lần chạy để từ chối')
+      return
+    }
+    setIsBulkRejectModalOpen(true)
+  }
+
+  const handleBulkRejectConfirm = (note: string) => {
+    const selectedRunIdsArray = Array.from(selectedRunIds)
+    bulkRejectMutation.mutate({ runIds: selectedRunIdsArray, note })
+  }
+
+  const isBulkLoading = bulkApproveMutation.isPending || bulkRejectMutation.isPending
 
   const getAutoResultBadge = (autoResult: 'pass' | 'warn' | 'fail' | null) => {
     if (!autoResult) {
@@ -361,6 +527,20 @@ export default function ApprovalInboxPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {(debouncedFilters.approvalState === '' || debouncedFilters.approvalState === 'pending') && (
+                    <TableHead className="w-12">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        ref={(el) => {
+                          if (el) el.indeterminate = isPartiallySelected
+                        }}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        aria-label="Chọn tất cả"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>Thiết bị</TableHead>
                   <TableHead>Xét nghiệm</TableHead>
                   <TableHead>Mức</TableHead>
@@ -375,8 +555,29 @@ export default function ApprovalInboxPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {runsResult.data.map((run) => (
-                  <TableRow key={run.id}>
+                {runsResult.data.map((run) => {
+                  const isSelected = selectedRunIds.has(run.id)
+                  const isProcessing = isBulkLoading && isSelected
+                  
+                  return (
+                    <TableRow 
+                      key={run.id} 
+                      className={`${isSelected ? 'bg-blue-50 border-blue-200' : ''} ${isProcessing ? 'opacity-60' : ''} transition-colors`}
+                    >
+                      {(debouncedFilters.approvalState === '' || debouncedFilters.approvalState === 'pending') && (
+                        <TableCell>
+                          {run.approvalState === 'pending' ? (
+                            <input
+                              type="checkbox"
+                              checked={selectedRunIds.has(run.id)}
+                              onChange={(e) => handleSelectRun(run.id, e.target.checked)}
+                              disabled={isBulkLoading}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                              aria-label={`Chọn ${run.deviceCode} - ${run.testCode}`}
+                            />
+                          ) : null}
+                        </TableCell>
+                      )}
                     <TableCell>
                       <div>
                         <div className="font-medium">{run.deviceCode}</div>
@@ -426,7 +627,8 @@ export default function ApprovalInboxPage() {
                       </TableCell>
                     )}
                   </TableRow>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           )}
@@ -563,6 +765,23 @@ export default function ApprovalInboxPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Toolbar */}
+      <BulkToolbar
+        selectedCount={selectedRunIds.size}
+        onBulkApprove={handleBulkApprove}
+        onBulkReject={handleBulkReject}
+        isLoading={isBulkLoading}
+      />
+
+      {/* Bulk Reject Modal */}
+      <BulkRejectModal
+        isOpen={isBulkRejectModalOpen}
+        onClose={() => setIsBulkRejectModalOpen(false)}
+        onConfirm={handleBulkRejectConfirm}
+        selectedCount={selectedRunIds.size}
+        isLoading={bulkRejectMutation.isPending}
+      />
     </div>
   )
 }
