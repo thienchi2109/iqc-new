@@ -21,13 +21,17 @@ const createWrapper = () => {
     },
   })
   
-  return ({ children }: { children: React.ReactNode }) => (
+  const TestWrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>
       <SessionProvider session={mockSession}>
         {children}
       </SessionProvider>
     </QueryClientProvider>
   )
+  
+  TestWrapper.displayName = 'TestWrapper'
+  
+  return TestWrapper
 }
 
 describe('BulkToolbar', () => {

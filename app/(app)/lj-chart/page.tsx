@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { LeveyJenningsChart, QcRun, QcLimits } from '@/components/lj/LeveyJenningsChart'
 import CustomSelect from '@/components/ui/CustomSelect'
-import { Input } from '@/components/ui/Input'
+import { Input } from '@/components/ui/input'
 
 interface QcLimit {
   mean: number

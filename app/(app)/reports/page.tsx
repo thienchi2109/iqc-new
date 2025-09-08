@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Input } from '@/components/ui/Input'
+import { Input } from '@/components/ui/input'
 import CustomSelect from '@/components/ui/CustomSelect'
-import { Button } from '@/components/ui/Button'
+import { Button } from '@/components/ui/button'
 
 interface ReportData {
   device: string

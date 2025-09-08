@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth/options'
 import { db } from '@/lib/db/client'
 import { qcLevels } from '@/lib/db/schema'
 import { createQcLevelSchema } from '@/lib/qc/validation'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 
 // GET /api/qc/levels - Get QC levels
 export async function GET(request: NextRequest) {
@@ -19,12 +19,16 @@ export async function GET(request: NextRequest) {
     const isActive = searchParams.get('isActive')
 
     let query = db.select().from(qcLevels)
-    
+
+    const conditions = [] as any[]
     if (testId) {
-      query = query.where(eq(qcLevels.testId, testId)) as typeof query
+      conditions.push(eq(qcLevels.testId, testId))
     }
     if (isActive !== null) {
-      query = query.where(eq(qcLevels.isActive, isActive === 'true')) as typeof query
+      conditions.push(eq(qcLevels.isActive, isActive === 'true'))
+    }
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query
     }
 
     const levels = await query.orderBy(qcLevels.level)

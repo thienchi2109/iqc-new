@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import CatalogTable, { Column } from '@/components/CatalogTable'
 import CatalogFormDrawer, { FormField } from '@/components/CatalogFormDrawer'
 import { useDevices, useCreateDevice, useUpdateDevice, useDeleteDevice } from '@/hooks/catalog'
@@ -10,11 +10,29 @@ export default function DevicesPage() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [editingDevice, setEditingDevice] = useState<Device | null>(null)
   const [activeFilter, setActiveFilter] = useState<boolean | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
 
   const { data: devices = [], isLoading } = useDevices({ isActive: activeFilter ?? undefined })
   const createMutation = useCreateDevice()
   const updateMutation = useUpdateDevice()
   const deleteMutation = useDeleteDevice()
+
+  // Debounce search 300ms
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim().toLowerCase()), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  const visibleDevices = useMemo(() => {
+    if (!debouncedQuery) return devices
+    return devices.filter((d) => {
+      const hay = [d.code, d.name, d.manufacturer || '', d.model || '', d.department || '']
+        .join(' ')
+        .toLowerCase()
+      return hay.includes(debouncedQuery)
+    })
+  }, [devices, debouncedQuery])
 
   const columns: Column<Device>[] = [
   { key: 'code', label: 'Mã', sortable: true },
@@ -57,9 +75,10 @@ export default function DevicesPage() {
       </div>
 
       <CatalogTable
-        data={devices?.map(device => ({ ...device, isActive: device.isActive ?? true })) || []}
+        data={visibleDevices?.map(device => ({ ...device, isActive: device.isActive ?? true })) || []}
         columns={columns}
         isLoading={isLoading}
+        onSearch={setSearchQuery}
         onAdd={() => { setEditingDevice(null); setIsDrawerOpen(true) }}
         onEdit={(device) => { setEditingDevice(device); setIsDrawerOpen(true) }}
         onDelete={(device) => deleteMutation.mutate(device.id)}

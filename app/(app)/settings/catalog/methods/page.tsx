@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import CatalogTable, { Column } from '@/components/CatalogTable'
 import CatalogFormDrawer, { FormField } from '@/components/CatalogFormDrawer'
 import { useMethods, useCreateMethod, useUpdateMethod, useDeleteMethod, Method } from '@/hooks/catalog'
@@ -13,6 +13,18 @@ export default function MethodsPage() {
   const createMutation = useCreateMethod()
   const updateMutation = useUpdateMethod()
   const deleteMutation = useDeleteMethod()
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim().toLowerCase()), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  const visibleMethods = useMemo(() => {
+    if (!debouncedQuery) return methods
+    return methods.filter(m => (`${m.code} ${m.name}`).toLowerCase().includes(debouncedQuery))
+  }, [methods, debouncedQuery])
 
   const columns: Column<Method>[] = [
   { key: 'code', label: 'Mã', sortable: true },
@@ -57,9 +69,10 @@ export default function MethodsPage() {
       </div>
 
       <CatalogTable
-        data={methods}
+        data={visibleMethods}
         columns={columns}
         isLoading={isLoading}
+        onSearch={setSearchQuery}
         onAdd={() => { setEditingMethod(null); setIsDrawerOpen(true) }}
         onEdit={(method) => { setEditingMethod(method); setIsDrawerOpen(true) }}
         onDelete={(method) => deleteMutation.mutate(method.id)}

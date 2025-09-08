@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import CatalogTable, { Column } from '@/components/CatalogTable'
 import CatalogFormDrawer, { FormField } from '@/components/CatalogFormDrawer'
 import { useUnits, useCreateUnit, useUpdateUnit, useDeleteUnit, Unit } from '@/hooks/catalog'
@@ -13,6 +13,18 @@ export default function UnitsPage() {
   const createMutation = useCreateUnit()
   const updateMutation = useUpdateUnit()
   const deleteMutation = useDeleteUnit()
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim().toLowerCase()), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  const visibleUnits = useMemo(() => {
+    if (!debouncedQuery) return units
+    return units.filter(u => (`${u.code} ${u.display}`).toLowerCase().includes(debouncedQuery))
+  }, [units, debouncedQuery])
 
   const columns: Column<Unit>[] = [
   { key: 'code', label: 'Mã', sortable: true },
@@ -57,9 +69,10 @@ export default function UnitsPage() {
       </div>
 
       <CatalogTable
-        data={units}
+        data={visibleUnits}
         columns={columns}
         isLoading={isLoading}
+        onSearch={setSearchQuery}
         onAdd={() => { setEditingUnit(null); setIsDrawerOpen(true) }}
         onEdit={(unit) => { setEditingUnit(unit); setIsDrawerOpen(true) }}
         onDelete={(unit) => deleteMutation.mutate(unit.id)}

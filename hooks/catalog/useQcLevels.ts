@@ -13,6 +13,7 @@ export const qcLevelKeys = {
 
 // Fetch QC levels
 export function useQcLevels(filters: { testId?: string; isActive?: boolean } = {}) {
+  const hasFilter = filters.testId !== undefined || filters.isActive !== undefined
   return useQuery({
     queryKey: qcLevelKeys.list(filters),
     queryFn: async (): Promise<QcLevel[]> => {
@@ -30,7 +31,7 @@ export function useQcLevels(filters: { testId?: string; isActive?: boolean } = {
       }
       return response.json()
     },
-    enabled: !!filters.testId || Object.keys(filters).length === 0, // Only fetch if testId provided or no filters
+    enabled: hasFilter || Object.keys(filters).length === 0, // Fetch when filters set or no filters at all
   })
 }
 

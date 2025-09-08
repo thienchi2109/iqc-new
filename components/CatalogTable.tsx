@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { Search, Plus, Edit, Trash2, Filter } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import CustomSelect from '@/components/ui/CustomSelect'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -39,6 +40,7 @@ export interface CatalogTableProps<T = any> {
   addButtonLabel?: string
   emptyMessage?: string
   className?: string
+  headerExtras?: ReactNode
 }
 
 export default function CatalogTable<T extends { id: string; isActive?: boolean }>({
@@ -56,6 +58,7 @@ export default function CatalogTable<T extends { id: string; isActive?: boolean 
   addButtonLabel = 'Thêm mới',
   emptyMessage = 'Không có dữ liệu',
   className = '',
+  headerExtras,
 }: CatalogTableProps<T>) {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortColumn, setSortColumn] = useState<string | null>(null)
@@ -144,6 +147,12 @@ export default function CatalogTable<T extends { id: string; isActive?: boolean 
                     { value: 'inactive', label: 'Không hoạt động' },
                   ]}
                 />
+              </div>
+            )}
+
+            {headerExtras && (
+              <div className="flex items-center gap-2">
+                {headerExtras}
               </div>
             )}
           </div>

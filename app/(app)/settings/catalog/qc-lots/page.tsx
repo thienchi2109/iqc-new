@@ -1,10 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import CatalogTable, { Column } from '@/components/CatalogTable'
 import CatalogFormDrawer, { FormField } from '@/components/CatalogFormDrawer'
-import SelectTest from '@/components/SelectTest'
-import SelectLevel from '@/components/SelectLevel'
+import CustomSelect from '@/components/ui/CustomSelect'
 import DateInputVN from '@/components/DateInputVN'
 import { useQcLots, useCreateQcLot, useUpdateQcLot, useDeleteQcLot } from '@/hooks/catalog'
 import { useTests, useQcLevels } from '@/hooks/catalog'
@@ -15,12 +14,33 @@ export default function QcLotsPage() {
   const [editingLot, setEditingLot] = useState<QcLot | null>(null)
   const [selectedTestId, setSelectedTestId] = useState('')
   const [selectedLevelId, setSelectedLevelId] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
 
-  const { data: lots = [], isLoading } = useQcLots({ 
-    levelId: selectedLevelId || undefined 
-  })
   const { data: tests = [] } = useTests({ isActive: true })
   const { data: levels = [] } = useQcLevels({ isActive: true })
+  // Determine which levels to query for when a test is selected
+  const levelIdsForTest = useMemo(
+    () => (selectedTestId ? levels.filter(l => l.testId === selectedTestId).map(l => l.id) : []),
+    [selectedTestId, levels]
+  )
+  // Sanitize filters so we don't pass undefined keys
+  // If a test is selected but it has NO levels, force an empty result by
+  // passing a never-matching UUID to levelIds to avoid fetching all lots.
+  const lotFilters = useMemo(() => {
+    if (selectedLevelId) {
+      return { levelId: selectedLevelId }
+    }
+    if (selectedTestId) {
+      if (levelIdsForTest.length > 0) {
+        return { levelIds: levelIdsForTest }
+      }
+      // Valid UUID that should not exist as a level id
+      return { levelIds: ['00000000-0000-0000-0000-000000000000'] }
+    }
+    return {}
+  }, [selectedLevelId, selectedTestId, levelIdsForTest])
+  const { data: lots = [], isLoading } = useQcLots(lotFilters)
   
   const createMutation = useCreateQcLot()
   const updateMutation = useUpdateQcLot()
@@ -122,6 +142,42 @@ export default function QcLotsPage() {
     }
   }
 
+  // Debounced multi-field search
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim().toLowerCase()), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  // Build maps for richer display and search
+  const testById = useMemo(() => {
+    const m = new Map<string, { code: string; name: string }>()
+    for (const t of tests) m.set(t.id, { code: t.code, name: t.name })
+    return m
+  }, [tests])
+  const levelById = useMemo(() => {
+    const m = new Map<string, { level: string; testId: string }>()
+    for (const lv of levels) m.set(lv.id, { level: lv.level, testId: lv.testId })
+    return m
+  }, [levels])
+
+  const filteredLots = useMemo(() => {
+    // Apply client-side text search over lot/test/level fields
+    if (!debouncedQuery) return lots
+    return lots.filter((lot) => {
+      const lvl = levelById.get(lot.levelId)
+      const tst = lvl ? testById.get(lvl.testId) : undefined
+      const haystack = [
+        lot.lotCode,
+        lot.supplier || '',
+        lot.notes || '',
+        lvl?.level || '',
+        tst?.code || '',
+        tst?.name || '',
+      ].join(' ').toLowerCase()
+      return haystack.includes(debouncedQuery)
+    })
+  }, [lots, debouncedQuery, levelById, testById])
+
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-6">
@@ -129,34 +185,45 @@ export default function QcLotsPage() {
   <p className="text-gray-600 mt-1">Quản lý lô và đợt kiểm soát chất lượng</p>
       </div>
 
-      <div className="mb-4 flex gap-4">
-        <SelectTest
-          value={selectedTestId}
-          onChange={(testId) => {
-            setSelectedTestId(testId)
-            setSelectedLevelId('') // Reset level when test changes
-          }}
-          tests={tests?.map(test => ({ ...test, isActive: test.isActive ?? true })) || []}
-          placeholder="Lọc theo xét nghiệm (tùy chọn)"
-          className="max-w-md"
-        />
-        <SelectLevel
-          value={selectedLevelId}
-          onChange={(levelId) => setSelectedLevelId(levelId)}
-          levels={levels?.map(level => ({ ...level, isActive: level.isActive ?? true, material: level.material ?? undefined })) || []}
-          testId={selectedTestId}
-          placeholder="Lọc theo mức (tùy chọn)"
-          className="max-w-md"
-        />
-      </div>
+      
 
       <CatalogTable
-        data={lots}
+        data={filteredLots}
         columns={columns}
         isLoading={isLoading}
+        onSearch={setSearchQuery}
         onAdd={() => { setEditingLot(null); setIsDrawerOpen(true) }}
         onEdit={(lot) => { setEditingLot(lot); setIsDrawerOpen(true) }}
         onDelete={(lot) => deleteMutation.mutate(lot.id)}
+        headerExtras={
+          <>
+            <CustomSelect
+              className="min-w-[220px]"
+              value={selectedTestId}
+              onChange={(testId) => {
+                setSelectedTestId(testId)
+                setSelectedLevelId('')
+              }}
+              options={[
+                { value: '', label: 'Tất cả xét nghiệm' },
+                ...tests.map(test => ({ value: test.id, label: `${test.code} - ${test.name}` })),
+              ]}
+              placeholder="Lọc theo xét nghiệm"
+            />
+            <CustomSelect
+              className="min-w-[160px]"
+              value={selectedLevelId}
+              onChange={(levelId) => setSelectedLevelId(levelId)}
+              options={[
+                { value: '', label: 'Tất cả mức' },
+                ...levels
+                  .filter(l => !selectedTestId || l.testId === selectedTestId)
+                  .map(l => ({ value: l.id, label: l.level }))
+              ]}
+              placeholder="Lọc theo mức"
+            />
+          </>
+        }
       />
 
       <CatalogFormDrawer

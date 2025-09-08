@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import CatalogTable, { Column } from '@/components/CatalogTable'
 import CatalogFormDrawer, { FormField } from '@/components/CatalogFormDrawer'
 import { useQcLimits, useCreateQcLimit, useUpdateQcLimit, useDeleteQcLimit } from '@/hooks/catalog'
@@ -18,7 +18,15 @@ export default function QcLimitsPage() {
     lotId: ''
   })
 
-  const { data: limits = [], isLoading } = useQcLimits(filters)
+  // Only include defined filter keys so queries enable correctly
+  const limitsFilters = useMemo(() => ({
+    ...(filters.testId ? { testId: filters.testId } : {}),
+    ...(filters.deviceId ? { deviceId: filters.deviceId } : {}),
+    ...(filters.levelId ? { levelId: filters.levelId } : {}),
+    ...(filters.lotId ? { lotId: filters.lotId } : {}),
+  }), [filters])
+
+  const { data: limits = [], isLoading } = useQcLimits(limitsFilters)
   const { data: tests = [] } = useTests({ isActive: true })
   const { data: devices = [] } = useDevices({ isActive: true })
   const { data: levels = [] } = useQcLevels({ isActive: true })
@@ -28,18 +36,25 @@ export default function QcLimitsPage() {
   const updateMutation = useUpdateQcLimit()
   const deleteMutation = useDeleteQcLimit()
 
-  // Filter limits based on search query - now works with pretty fields
-  const filteredLimits = limits.filter((limit: any) => {
-    if (!searchQuery) return true
-    const query = searchQuery.toLowerCase()
-    return (
-      limit.test?.toLowerCase().includes(query) ||
-      limit.device?.toLowerCase().includes(query) ||
-      limit.level?.toLowerCase().includes(query) ||
-      limit.lot?.toLowerCase().includes(query) ||
-      limit.source?.toLowerCase().includes(query)
-    )
-  })
+  // Debounced multi-field search across pretty fields
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim().toLowerCase()), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+  const visibleLimits = useMemo(() => {
+    if (!debouncedQuery) return limits
+    const q = debouncedQuery
+    return limits.filter((limit: any) => [
+      limit.test,
+      limit.testName,
+      limit.device,
+      limit.deviceName,
+      limit.level,
+      limit.lot,
+      limit.source,
+    ].filter(Boolean).some((v: any) => String(v).toLowerCase().includes(q)))
+  }, [limits, debouncedQuery])
 
   const columns: Column<any>[] = [
     { key: 'test', label: 'Xét nghiệm' },
@@ -172,55 +187,59 @@ export default function QcLimitsPage() {
   <p className="text-gray-600 mt-1">Quản lý giới hạn thống kê QC (trung bình, SD, CV) cho các kết hợp xét nghiệm-thiết bị-lô</p>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <CustomSelect
-          className="min-w-[180px]"
-          value={filters.testId}
-          onChange={(value) => setFilters(prev => ({ ...prev, testId: value }))}
-          options={[{ value: '', label: 'Tất cả xét nghiệm' }, ...tests.map(test => ({ value: test.id, label: `${test.code} - ${test.name}` }))]}
-          placeholder="Tất cả xét nghiệm"
-        />
-
-        <CustomSelect
-          className="min-w-[180px]"
-          value={filters.deviceId}
-          onChange={(value) => setFilters(prev => ({ ...prev, deviceId: value }))}
-          options={[{ value: '', label: 'Tất cả thiết bị' }, ...devices.map(device => ({ value: device.id, label: `${device.code} - ${device.name}` }))]}
-          placeholder="Tất cả thiết bị"
-        />
-
-        <CustomSelect
-          className="min-w-[160px]"
-          value={filters.levelId}
-          onChange={(value) => setFilters(prev => ({ ...prev, levelId: value }))}
-          options={[
-            { value: '', label: 'Tất cả mức' },
-            { value: 'L1', label: 'L1' },
-            { value: 'L2', label: 'L2' },
-            { value: 'L3', label: 'L3' }
-          ]}
-          placeholder="Tất cả mức"
-        />
-
-        <CustomSelect
-          className="min-w-[160px]"
-          value={filters.lotId}
-          onChange={(value) => setFilters(prev => ({ ...prev, lotId: value }))}
-          options={[{ value: '', label: 'Tất cả lô' }, ...lots.map(lot => ({ value: lot.id, label: lot.lotCode }))]}
-          placeholder="Tất cả lô"
-        />
-      </div>
+      
 
       <CatalogTable
-        data={filteredLimits}
+        data={visibleLimits}
         columns={columns}
         isLoading={isLoading}
         onAdd={() => { setEditingLimit(null); setIsDrawerOpen(true) }}
         onEdit={(limit) => { setEditingLimit(limit); setIsDrawerOpen(true) }}
         onDelete={(limit) => deleteMutation.mutate(limit.id)}
-  onSearch={setSearchQuery}
-  searchPlaceholder="Tìm theo xét nghiệm, thiết bị, mức, lô hoặc nguồn..."
-  emptyMessage="Không tìm thấy giới hạn QC nào. Cấu hình giới hạn QC đầu tiên để bắt đầu."
+        onSearch={setSearchQuery}
+        searchPlaceholder="Tìm theo xét nghiệm, thiết bị, mức, lô hoặc nguồn..."
+        emptyMessage="Không tìm thấy giới hạn QC nào. Cấu hình giới hạn QC đầu tiên để bắt đầu."
+        headerExtras={
+          <>
+            <CustomSelect
+              className="min-w-[200px]"
+              value={filters.testId}
+              onChange={(value) => setFilters(prev => ({ ...prev, testId: value, levelId: '', lotId: '' }))}
+              options={[{ value: '', label: 'Tất cả xét nghiệm' }, ...tests.map(test => ({ value: test.id, label: `${test.code} - ${test.name}` }))]}
+              placeholder="Tất cả xét nghiệm"
+            />
+            <CustomSelect
+              className="min-w-[180px]"
+              value={filters.deviceId}
+              onChange={(value) => setFilters(prev => ({ ...prev, deviceId: value }))}
+              options={[{ value: '', label: 'Tất cả thiết bị' }, ...devices.map(device => ({ value: device.id, label: `${device.code} - ${device.name}` }))]}
+              placeholder="Tất cả thiết bị"
+            />
+            <CustomSelect
+              className="min-w-[140px]"
+              value={filters.levelId}
+              onChange={(value) => setFilters(prev => ({ ...prev, levelId: value, lotId: '' }))}
+              options={[
+                { value: '', label: 'Tất cả mức' },
+                ...levels.filter(l => !filters.testId || l.testId === filters.testId).map(l => ({ value: l.id, label: l.level }))
+              ]}
+              placeholder="Tất cả mức"
+            />
+            <CustomSelect
+              className="min-w-[160px]"
+              value={filters.lotId}
+              onChange={(value) => setFilters(prev => ({ ...prev, lotId: value }))}
+              options={[
+                { value: '', label: 'Tất cả lô' },
+                ...lots
+                  .filter(l => !filters.levelId || l.levelId === filters.levelId)
+                  .filter(l => !filters.testId || (levels.find(x => x.id === l.levelId)?.testId === filters.testId))
+                  .map(l => ({ value: l.id, label: l.lotCode }))
+              ]}
+              placeholder="Tất cả lô"
+            />
+          </>
+        }
       />
 
       <CatalogFormDrawer
