@@ -22,6 +22,14 @@ function LjChartPage() {
   const [testId, setTestId] = useState(() => searchParams.get('testId') || '')
   const [levelId, setLevelId] = useState(() => searchParams.get('levelId') || '')
   const [lotId, setLotId] = useState(() => searchParams.get('lotId') || '')
+  const [pointCount, setPointCount] = useState(() => {
+    const raw = searchParams.get('limit')
+    const num = raw ? parseInt(raw, 10) : 100
+    if (Number.isFinite(num)) {
+      return Math.min(2000, Math.max(1, Math.floor(num)))
+    }
+    return 100
+  })
   const [dateFrom, setDateFrom] = useState(() => {
     const param = searchParams.get('from')
     if (param) return param
@@ -49,12 +57,13 @@ function LjChartPage() {
     if (lotId) params.set('lotId', lotId)
     if (dateFrom) params.set('from', dateFrom)
     if (dateTo) params.set('to', dateTo)
+    if (pointCount) params.set('limit', String(pointCount))
     
     const paramString = params.toString()
     const newURL = paramString ? `?${paramString}` : '/lj-chart'
     
     router.replace(newURL, { scroll: false })
-  }, [router, deviceId, testId, levelId, lotId, dateFrom, dateTo])
+  }, [router, deviceId, testId, levelId, lotId, dateFrom, dateTo, pointCount])
 
   // Update URL when any filter changes
   useEffect(() => {
@@ -124,9 +133,9 @@ function LjChartPage() {
     enabled: !!(testId && levelId && lotId && deviceId),
   })
 
-  // Fetch QC runs data for chart
-  const { data: chartData, isLoading } = useQuery<QcRun[]>({
-    queryKey: ['chart-data', deviceId, testId, levelId, lotId, dateFrom, dateTo],
+  // Count how many runs exist for current filters (independent of limit)
+  const { data: runsMeta } = useQuery<{ total: number } | null>({
+    queryKey: ['chart-count', deviceId, testId, levelId, lotId, dateFrom, dateTo],
     queryFn: async () => {
       const params = new URLSearchParams()
       if (deviceId) params.append('deviceId', deviceId)
@@ -135,8 +144,34 @@ function LjChartPage() {
       if (lotId) params.append('lotId', lotId)
       if (dateFrom) params.append('from', dateFrom)
       if (dateTo) params.append('to', dateTo)
-      params.append('limit', '1000')
-      params.append('order', 'asc') // Use time ascending order for proper L-J chart
+      params.append('includeCount', 'true')
+      params.append('limit', '1')
+      params.append('order', 'desc')
+
+      const res = await fetch(`/api/qc/runs?${params}`)
+      if (!res.ok) {
+        throw new Error('Failed to fetch QC runs count')
+      }
+      const payload = await res.json()
+      const total = typeof payload?.total === 'number' ? payload.total : (Array.isArray(payload) ? payload.length : 0)
+      return { total }
+    },
+    enabled: !!(deviceId && testId && levelId && lotId),
+  })
+
+  // Fetch QC runs data for chart
+  const { data: chartData, isLoading } = useQuery<QcRun[]>({
+    queryKey: ['chart-data', deviceId, testId, levelId, lotId, dateFrom, dateTo, pointCount],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (deviceId) params.append('deviceId', deviceId)
+      if (testId) params.append('testId', testId)
+      if (levelId) params.append('levelId', levelId)
+      if (lotId) params.append('lotId', lotId)
+      if (dateFrom) params.append('from', dateFrom)
+      if (dateTo) params.append('to', dateTo)
+      params.append('limit', String(Math.min(2000, Math.max(1, pointCount))))
+      params.append('order', 'desc') // Get latest N, then reverse for plotting
       
       const res = await fetch(`/api/qc/runs?${params}`)
       if (!res.ok) {
@@ -147,8 +182,8 @@ function LjChartPage() {
       if (!Array.isArray(runs)) {
         return []
       }
-      
-      return runs
+      // Reverse to oldest -> newest for LJ chart plotting
+      return runs.reverse()
     },
     enabled: !!(deviceId && testId && levelId && lotId),
   })
@@ -211,7 +246,7 @@ function LjChartPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Từ ngày</label>
             <Input
@@ -227,6 +262,24 @@ function LjChartPage() {
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Số điểm hiển thị</label>
+            <Input
+              type="number"
+              min={1}
+              max={2000}
+              step={1}
+              value={pointCount}
+              onChange={(e) => {
+                const val = parseInt(e.target.value || '0', 10)
+                const clamped = Math.min(2000, Math.max(1, Number.isFinite(val) ? val : 1))
+                setPointCount(clamped)
+              }}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Có {runsMeta?.total ?? 0} điểm trong khoảng ngày; hiển thị {chartData?.length ?? 0} điểm.
+            </p>
           </div>
         </div>
       </div>

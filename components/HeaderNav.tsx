@@ -45,8 +45,8 @@ export default function HeaderNav({ user }: HeaderNavProps) {
           <div className="flex items-center min-w-0 flex-shrink-0">
             <Link href="/dashboard" className="flex items-center space-x-2">
               <Image src="https://i.postimg.cc/CLD5SNvf/profit-1508216.png" alt="C-Lab IQC Pro Logo" width={32} height={32} className="sm:w-10 sm:h-10" />
-              <span className="hidden md:block text-lg xl:text-xl font-bold text-blue-600">C-Lab IQC Pro</span>
-              <span className="md:hidden text-base font-bold text-blue-600">C-Lab</span>
+              <span className="hidden md:block text-lg xl:text-xl font-extrabold text-blue-600">C-Lab IQC Pro</span>
+              <span className="md:hidden text-base font-extrabold text-blue-600">C-Lab</span>
             </Link>
           </div>
 
@@ -59,8 +59,8 @@ export default function HeaderNav({ user }: HeaderNavProps) {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`px-2 py-2 rounded-xl text-xs xl:text-sm font-medium transition-colors duration-150 whitespace-nowrap ${
-                    isActive ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-blue-600 hover:bg-gray-100'
+                  className={`px-2 py-2 rounded-xl text-xs xl:text-sm transition-colors duration-150 whitespace-nowrap ${
+                    isActive ? 'font-semibold bg-blue-100 text-blue-700' : 'font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-100'
                   }`}
                 >
                   {item.name}
@@ -138,8 +138,8 @@ export default function HeaderNav({ user }: HeaderNavProps) {
                   <Link
                     key={item.name}
                     href={item.href}
-                    className={`block px-3 py-2 rounded-md text-base font-medium transition-colors duration-150 ${
-                      isActive ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:text-blue-600 hover:bg-gray-100'
+                    className={`block px-3 py-2 rounded-md text-base transition-colors duration-150 ${
+                      isActive ? 'font-semibold bg-blue-100 text-blue-700' : 'font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-100'
                     }`}
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
@@ -165,4 +165,3 @@ export default function HeaderNav({ user }: HeaderNavProps) {
     </nav>
   )
 }
-
