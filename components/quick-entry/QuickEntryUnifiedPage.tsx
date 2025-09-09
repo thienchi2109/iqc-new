@@ -172,6 +172,31 @@ function QuickEntryUnifiedInner() {
     enabled: !!selection,
   })
 
+  // Count total runs for current filters (independent of limit)
+  const { data: runsMeta } = useQuery<{ total: number } | null>({
+    queryKey: ['chart-count', selection?.deviceId, selection?.testId, selection?.levelId, selection?.lotId, dateRange.from, dateRange.to],
+    queryFn: async () => {
+      if (!selection) return null
+      const params = new URLSearchParams()
+      params.append('deviceId', selection.deviceId)
+      params.append('testId', selection.testId)
+      params.append('levelId', selection.levelId)
+      params.append('lotId', selection.lotId)
+      if (dateRange?.from) params.append('from', dateRange.from)
+      if (dateRange?.to) params.append('to', dateRange.to)
+      params.append('includeCount', 'true')
+      params.append('limit', '1')
+      params.append('order', 'desc')
+
+      const res = await fetch(`/api/qc/runs?${params}`)
+      if (!res.ok) throw new Error('Failed to fetch QC runs count')
+      const payload = await res.json()
+      const total = typeof payload?.total === 'number' ? payload.total : (Array.isArray(payload) ? payload.length : 0)
+      return { total }
+    },
+    enabled: !!selection,
+  })
+
   // Refetch when date range or count changes (query key intentionally stable to align with cache updates)
   useEffect(() => {
     if (selection) {
@@ -276,15 +301,20 @@ function QuickEntryUnifiedInner() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Số điểm</label>
-            <input
-              type="number"
-              min={1}
-              max={2000}
-              step={1}
-              value={pointCount}
-              onChange={(e) => handlePointCountChange(parseInt(e.target.value || '100', 10))}
-              className="border rounded px-2 py-1 w-28"
-            />
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min={1}
+                max={2000}
+                step={1}
+                value={pointCount}
+                onChange={(e) => handlePointCountChange(parseInt(e.target.value || '100', 10))}
+                className="border rounded px-2 py-1 w-28"
+              />
+              <span className="text-xs text-gray-500 whitespace-nowrap">
+                (Có {runsMeta?.total ?? 0} điểm trong khoảng thời gian đã chọn. Đang hiển thị {chartData?.length ?? 0} điểm)
+              </span>
+            </div>
           </div>
         </div>
       </div>
