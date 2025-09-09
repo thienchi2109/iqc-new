@@ -82,6 +82,7 @@ export interface QuickEntryFormProps {
   }) => void
   onLimitsChange?: (limits: QcLimits | null) => void
   onClearSelection?: () => void
+  onSubmitSuccess?: () => void
   className?: string
 }
 
@@ -89,6 +90,7 @@ export function QuickEntryForm({
   onSelectionChange,
   onLimitsChange,
   onClearSelection,
+  onSubmitSuccess,
   className = '',
 }: QuickEntryFormProps) {
   const { data: session } = useSession()
@@ -434,6 +436,7 @@ export function QuickEntryForm({
       setLevels((prev) => prev.map((l) => ({ ...l, value: '', notes: '' })))
 
       toast.success('Tạo lần chạy QC thành công!')
+      if (onSubmitSuccess) onSubmitSuccess()
     } catch (error) {
       console.error('Lỗi khi tạo lần chạy QC:', error)
       toast.error('Lỗi khi tạo lần chạy QC. Vui lòng thử lại.')

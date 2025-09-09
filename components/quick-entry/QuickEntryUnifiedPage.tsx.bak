@@ -38,12 +38,6 @@ function QuickEntryUnifiedInner() {
   const [limits, setLimits] = useState<QcLimits | null>(null)
   // Force form remount on external reset
   const [formResetKey, setFormResetKey] = useState(0)
-  // Tab state persisted in URL
-  const initialTab = (() => {
-    const t = searchParams.get('tab')
-    return t === 'chart' ? 'chart' : 'entry'
-  })()
-  const [activeTab, setActiveTab] = useState<'entry' | 'chart'>(initialTab)
 
   // Date range state (default last 30 days) reused for chart
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>(() => {
@@ -67,12 +61,7 @@ function QuickEntryUnifiedInner() {
 
   // Sync URL with state
   const updateURL = useCallback(
-    (
-      newSelection: Selection | null,
-      newDateRange?: { from: string; to: string },
-      newPointCount?: number,
-      newActiveTab?: 'entry' | 'chart'
-    ) => {
+    (newSelection: Selection | null, newDateRange?: { from: string; to: string }, newPointCount?: number) => {
       const params = new URLSearchParams()
       if (newSelection) {
         params.set('deviceId', newSelection.deviceId)
@@ -85,14 +74,12 @@ function QuickEntryUnifiedInner() {
       if (range?.to) params.set('to', range.to)
       const limit = typeof newPointCount === 'number' ? newPointCount : pointCount
       params.set('limit', String(limit))
-      const tab = newActiveTab || activeTab
-      params.set('tab', tab)
 
       const paramString = params.toString()
       const newURL = paramString ? `?${paramString}` : ''
       router.replace(newURL || '?', { scroll: false })
     },
-    [router, dateRange, pointCount, activeTab]
+    [router, dateRange, pointCount]
   )
 
   const handleSelectionChange = useCallback((newSelection: Selection) => {
@@ -120,11 +107,6 @@ function QuickEntryUnifiedInner() {
     const clamped = Math.min(2000, Math.max(1, Math.floor(cnt || 100)))
     setPointCount(clamped)
     updateURL(selection, undefined, clamped)
-  }, [selection, updateURL])
-
-  const switchTab = useCallback((tab: 'entry' | 'chart') => {
-    setActiveTab(tab)
-    updateURL(selection, undefined, undefined, tab)
   }, [selection, updateURL])
 
   // Fetch QC limits (fallback) in case limits not available from form yet
@@ -196,24 +178,6 @@ function QuickEntryUnifiedInner() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-white rounded-lg border shadow-sm p-2 w-full">
-        <div className="flex gap-2">
-          <button
-            className={`px-3 py-2 rounded-md text-sm ${activeTab === 'entry' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-            onClick={() => switchTab('entry')}
-          >
-            Nhập liệu
-          </button>
-          <button
-            className={`px-3 py-2 rounded-md text-sm ${activeTab === 'chart' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-            onClick={() => switchTab('chart')}
-          >
-            Biểu đồ L-J
-          </button>
-        </div>
-      </div>
-
       {/* QC Limits Info */}
       {effectiveLimits && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -241,19 +205,12 @@ function QuickEntryUnifiedInner() {
         </div>
       )}
 
-      {/* Quick Entry Form (keep mounted to preserve state across tabs) */}
-      <div className={`bg-white rounded-lg border shadow-sm p-6 ${activeTab !== 'entry' ? 'hidden' : ''}`}>
-        <QuickEntryForm
-          key={formResetKey}
-          onSelectionChange={handleSelectionChange}
-          onLimitsChange={handleLimitsChange}
-          onClearSelection={handleClearSelection}
-          onSubmitSuccess={() => switchTab('chart')}
-        />
+      {/* Quick Entry Form */}
+      <div className="bg-white rounded-lg border shadow-sm p-6">
+        <QuickEntryForm key={formResetKey} onSelectionChange={handleSelectionChange} onLimitsChange={handleLimitsChange} onClearSelection={handleClearSelection} />
       </div>
 
       {/* Inline date and limit controls for chart */}
-      {activeTab === 'chart' && (
       <div className="bg-white rounded-lg border shadow-sm p-4">
         <div className="flex flex-wrap gap-4 items-end">
           <div>
@@ -288,10 +245,8 @@ function QuickEntryUnifiedInner() {
           </div>
         </div>
       </div>
-      )}
 
       {/* Embedded LJ Chart */}
-      {activeTab === 'chart' && (
       <div className="bg-white rounded-lg border shadow-sm p-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold text-gray-900">
@@ -324,7 +279,6 @@ function QuickEntryUnifiedInner() {
           />
         )}
       </div>
-      )}
     </div>
   )
 }
@@ -341,3 +295,5 @@ export default function QuickEntryUnifiedPage() {
     </Suspense>
   )
 }
+
+
