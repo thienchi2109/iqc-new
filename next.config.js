@@ -37,6 +37,15 @@ const nextConfig = {
     }
     return config
   },
+  async redirects() {
+    return [
+      {
+        source: '/lj-chart',
+        destination: '/quick-entry',
+        permanent: true, // 308
+      },
+    ]
+  },
   
   // Additional option to reduce file watching errors
   typescript: {
