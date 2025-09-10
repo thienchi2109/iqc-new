@@ -1,6 +1,6 @@
-'use client'
+"use client";
 
-import React from 'react'
+import React from "react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -11,57 +11,57 @@ import {
   ReferenceLine,
   Tooltip,
   Legend,
-} from 'recharts'
-import { GhostPoint } from './useGhostPoints'
+} from "recharts";
+import { GhostPoint } from "./useGhostPoints";
 
 export interface QcRun {
-  id: string
-  value: number
-  z: number | null
-  side?: 'above' | 'below' | 'on'
-  runAt: string
-  t?: number // Numeric timestamp from API
-  autoResult?: string
-  approvalState?: string
-  violations?: string[]
-  performerName?: string
-  lotCode?: string
-  notes?: string
+  id: string;
+  value: number;
+  z: number | null;
+  side?: "above" | "below" | "on";
+  runAt: string;
+  t?: number; // Numeric timestamp from API
+  autoResult?: string;
+  approvalState?: string;
+  violations?: string[];
+  performerName?: string;
+  lotCode?: string;
+  notes?: string;
 }
 
 export interface QcLimits {
-  mean: number | string
-  sd: number | string  
-  cv?: number | string
+  mean: number | string;
+  sd: number | string;
+  cv?: number | string;
 }
 
 export interface LjChartProps {
-  limits?: QcLimits
-  ghostPoints?: GhostPoint[]
-  runs?: QcRun[]
-  isLoading?: boolean
-  title?: string
-  className?: string
-  height?: number
+  limits?: QcLimits;
+  ghostPoints?: GhostPoint[];
+  runs?: QcRun[];
+  isLoading?: boolean;
+  title?: string;
+  className?: string;
+  height?: number;
 }
 
 interface ChartDataPoint {
-  x: number // Numeric timestamp for proper time axis
-  value: number
-  z: number | null
-  date: string
-  formattedDate: string
-  type: 'real' | 'ghost'
-  autoResult?: 'pass' | 'warn' | 'fail'
-  approvalState?: 'pending' | 'approved' | 'rejected'
-  color?: string
-  runData?: QcRun
-  ghostData?: GhostPoint
+  x: number; // Numeric timestamp for proper time axis
+  value: number;
+  z: number | null;
+  date: string;
+  formattedDate: string;
+  type: "real" | "ghost";
+  autoResult?: "pass" | "warn" | "fail";
+  approvalState?: "pending" | "approved" | "rejected";
+  color?: string;
+  runData?: QcRun;
+  ghostData?: GhostPoint;
 }
 
 /**
  * Robust Levey-Jennings Chart Component with proper time axis
- * 
+ *
  * Key improvements:
  * - Uses numeric timestamps for X-axis instead of indices
  * - Proper Y-domain calculation with ±3SD boundaries
@@ -77,81 +77,90 @@ const LjChartComponent = ({
   ghostPoints = [],
   runs = [],
   isLoading = false,
-  title = 'Biểu đồ Levey-Jennings',
-  className = '',
+  title = "Biểu đồ Levey-Jennings",
+  className = "",
   height = 400,
 }: LjChartProps) => {
-  console.log('🎨 LjChart rendered with props:', {
+  console.log("🎨 LjChart rendered with props:", {
     limits,
     ghostPoints,
     runs: runs?.length,
-    isLoading
-  })
-  
+    isLoading,
+  });
+
   // Helper function to ensure numeric values from PostgreSQL
   const toNumber = (value: number | string): number => {
-    if (typeof value === 'number') return value
-    const parsed = parseFloat(String(value))
-    return isNaN(parsed) ? 0 : parsed
-  }
+    if (typeof value === "number") return value;
+    const parsed = parseFloat(String(value));
+    return isNaN(parsed) ? 0 : parsed;
+  };
 
   // Convert limits to numbers for calculations
   const numericLimits = React.useMemo(() => {
-    if (!limits) return null
+    if (!limits) return null;
     return {
       mean: toNumber(limits.mean),
       sd: toNumber(limits.sd),
-      cv: limits.cv ? toNumber(limits.cv) : undefined
-    }
-  }, [limits])
+      cv: limits.cv ? toNumber(limits.cv) : undefined,
+    };
+  }, [limits]);
 
   // Format date to Vietnamese format
   const formatDate = (date: string | Date): string => {
-    const d = typeof date === 'string' ? new Date(date) : date
-    return new Intl.DateTimeFormat('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      timeZone: 'Asia/Ho_Chi_Minh',
-    }).format(d)
-  }
+    const d = typeof date === "string" ? new Date(date) : date;
+    return new Intl.DateTimeFormat("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      timeZone: "Asia/Ho_Chi_Minh",
+    }).format(d);
+  };
 
   // Get color based on auto_result and approval_state
-  const getPointColor = (autoResult?: string, approvalState?: string): string => {
+  const getPointColor = (
+    autoResult?: string,
+    approvalState?: string,
+  ): string => {
     // Priority: auto_result determines base color
     const baseColor = (() => {
       switch (autoResult) {
-        case 'fail': return '#dc2626' // red-600
-        case 'warn': return '#ea580c' // orange-600  
-        case 'pass': return '#16a34a' // green-600
-        default: return '#3b82f6' // blue-600 (default)
+        case "fail":
+          return "#dc2626"; // red-600
+        case "warn":
+          return "#ea580c"; // orange-600
+        case "pass":
+          return "#16a34a"; // green-600
+        default:
+          return "#3b82f6"; // blue-600 (default)
       }
-    })()
-    
+    })();
+
     // Approval state affects opacity/style but not base color
-    return baseColor
-  }
+    return baseColor;
+  };
 
   // Validate limits data with performance optimization
   const hasValidLimits = React.useMemo(() => {
-    return numericLimits && 
-           Number.isFinite(numericLimits.mean) && 
-           Number.isFinite(numericLimits.sd) && 
-           numericLimits.sd > 0
-  }, [numericLimits]) // Only depend on actual values
+    return (
+      numericLimits &&
+      Number.isFinite(numericLimits.mean) &&
+      Number.isFinite(numericLimits.sd) &&
+      numericLimits.sd > 0
+    );
+  }, [numericLimits]); // Only depend on actual values
 
   // Prepare chart data by combining real runs and ghost points with proper time sorting
   const chartData = React.useMemo((): ChartDataPoint[] => {
-    const data: ChartDataPoint[] = []
+    const data: ChartDataPoint[] = [];
 
     // Add real runs with time validation
     runs.forEach((run) => {
       // Use 't' field from API if available, otherwise parse runAt
-      const timestamp = run.t || Date.parse(run.runAt)
-      
+      const timestamp = run.t || Date.parse(run.runAt);
+
       // Skip invalid timestamps or values
       if (!Number.isFinite(timestamp) || !Number.isFinite(run.value)) {
-        console.warn('Skipping invalid run data:', run)
-        return
+        console.warn("Skipping invalid run data:", run);
+        return;
       }
 
       data.push({
@@ -160,29 +169,33 @@ const LjChartComponent = ({
         z: run.z,
         date: run.runAt,
         formattedDate: formatDate(run.runAt),
-        type: 'real',
-        autoResult: run.autoResult as 'pass' | 'warn' | 'fail' | undefined,
-        approvalState: run.approvalState as 'pending' | 'approved' | 'rejected' | undefined,
+        type: "real",
+        autoResult: run.autoResult as "pass" | "warn" | "fail" | undefined,
+        approvalState: run.approvalState as
+          | "pending"
+          | "approved"
+          | "rejected"
+          | undefined,
         color: getPointColor(run.autoResult, run.approvalState),
         runData: run,
-      })
-    })
+      });
+    });
 
     // Add ghost points with validation
     ghostPoints.forEach((ghost) => {
-      const timestamp = ghost.time.getTime()
-      
-      console.log('Processing ghost point:', {
+      const timestamp = ghost.time.getTime();
+
+      console.log("Processing ghost point:", {
         levelId: ghost.levelId,
         value: ghost.value,
         z: ghost.z,
         time: ghost.time,
-        timestamp
-      })
-      
+        timestamp,
+      });
+
       if (!Number.isFinite(timestamp) || !Number.isFinite(ghost.value)) {
-        console.warn('Skipping invalid ghost point:', ghost)
-        return
+        console.warn("Skipping invalid ghost point:", ghost);
+        return;
       }
 
       data.push({
@@ -191,85 +204,85 @@ const LjChartComponent = ({
         z: ghost.z,
         date: ghost.time.toISOString(),
         formattedDate: formatDate(ghost.time),
-        type: 'ghost',
+        type: "ghost",
         color: ghost.color,
         ghostData: ghost,
-      })
-    })
+      });
+    });
 
     // Sort by timestamp for proper line connections
-    return data.sort((a, b) => a.x - b.x)
-  }, [runs, ghostPoints]) // Optimize dependency tracking
+    return data.sort((a, b) => a.x - b.x);
+  }, [runs, ghostPoints]); // Optimize dependency tracking
 
   // Calculate Y-domain with ±3SD boundaries and padding
   const yDomain = React.useMemo((): [number, number] => {
     if (!hasValidLimits) {
       // Fallback to data range if no valid limits
-      const values = chartData.map(d => d.value).filter(Number.isFinite)
-      if (values.length === 0) return [0, 100]
-      
-      const min = Math.min(...values)
-      const max = Math.max(...values)
-      const range = max - min || 10
-      const padding = range * 0.1
-      
-      return [min - padding, max + padding]
+      const values = chartData.map((d) => d.value).filter(Number.isFinite);
+      if (values.length === 0) return [0, 100];
+
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const range = max - min || 10;
+      const padding = range * 0.1;
+
+      return [min - padding, max + padding];
     }
 
     // Use ±3SD with padding for line visibility, but ensure ghost points are visible
-    const { mean, sd } = numericLimits!
-    const lower = mean - 3 * sd
-    const upper = mean + 3 * sd
-    
+    const { mean, sd } = numericLimits!;
+    const lower = mean - 3 * sd;
+    const upper = mean + 3 * sd;
+
     // Check if any data points are outside ±3SD range
-    const values = chartData.map(d => d.value).filter(Number.isFinite)
-    const dataMin = values.length > 0 ? Math.min(...values) : lower
-    const dataMax = values.length > 0 ? Math.max(...values) : upper
-    
-    const finalLower = Math.min(lower, dataMin)
-    const finalUpper = Math.max(upper, dataMax)
-    const range = finalUpper - finalLower
-    const padding = range * 0.05 // 5% padding for reference line visibility
-    
-    return [finalLower - padding, finalUpper + padding]
-  }, [hasValidLimits, numericLimits, chartData])
+    const values = chartData.map((d) => d.value).filter(Number.isFinite);
+    const dataMin = values.length > 0 ? Math.min(...values) : lower;
+    const dataMax = values.length > 0 ? Math.max(...values) : upper;
+
+    const finalLower = Math.min(lower, dataMin);
+    const finalUpper = Math.max(upper, dataMax);
+    const range = finalUpper - finalLower;
+    const padding = range * 0.05; // 5% padding for reference line visibility
+
+    return [finalLower - padding, finalUpper + padding];
+  }, [hasValidLimits, numericLimits, chartData]);
 
   // Calculate X-domain for time axis
   const xDomain = React.useMemo((): [number, number] => {
     if (chartData.length === 0) {
-      const now = Date.now()
-      return [now - 24 * 60 * 60 * 1000, now] // Last 24 hours default
+      const now = Date.now();
+      return [now - 24 * 60 * 60 * 1000, now]; // Last 24 hours default
     }
 
-    const timestamps = chartData.map(d => d.x)
-    const min = Math.min(...timestamps)
-    const max = Math.max(...timestamps)
-    
+    const timestamps = chartData.map((d) => d.x);
+    const min = Math.min(...timestamps);
+    const max = Math.max(...timestamps);
+
     // Add 5% padding on each side
-    const range = max - min || 24 * 60 * 60 * 1000 // 1 day fallback
-    const padding = range * 0.05
-    
-    return [min - padding, max + padding]
-  }, [chartData])
+    const range = max - min || 24 * 60 * 60 * 1000; // 1 day fallback
+    const padding = range * 0.05;
+
+    return [min - padding, max + padding];
+  }, [chartData]);
 
   // Separate real and ghost points for different styling
-  const realPoints = chartData.filter(d => d.type === 'real')
-  const ghostPointsData = chartData.filter(d => d.type === 'ghost')
+  const realPoints = chartData.filter((d) => d.type === "real");
+  const ghostPointsData = chartData.filter((d) => d.type === "ghost");
 
   // Custom tooltip component
   const CustomTooltip = ({ active, payload }: any) => {
-    if (!active || !payload || !payload.length) return null
-    
-    const data = payload[0].payload
-    const isGhost = data.type === 'ghost'
-    
-    console.log('🔍 Tooltip data:', { 
-      data, 
-      value: data.value, 
+    if (!active || !payload || !payload.length) return null;
+
+    const data = payload[0].payload;
+    const isGhost = data.type === "ghost";
+
+    console.log("🔍 Tooltip data:", {
+      data,
+      value: data.value,
       valueType: typeof data.value,
-      rawPayload: payload[0]
-    })
-    
+      rawPayload: payload[0],
+    });
+
     return (
       <div className="bg-white p-3 border border-gray-300 rounded-lg shadow-lg max-w-xs">
         <p className="font-medium text-gray-900">
@@ -277,37 +290,45 @@ const LjChartComponent = ({
         </p>
         {data.z !== null && Number.isFinite(data.z) && (
           <p className="text-sm">
-            <span className="font-medium">Z-score:</span> {Number(data.z).toFixed(3)}
+            <span className="font-medium">Z-score:</span>{" "}
+            {Number(data.z).toFixed(3)}
           </p>
         )}
         <p className="text-sm">
           <span className="font-medium">Thời gian:</span> {data.formattedDate}
         </p>
-        
+
         {!isGhost && data.runData && (
           <>
             {data.runData.autoResult && (
               <p className="text-sm">
-                <span className="font-medium">Kết quả:</span> {data.runData.autoResult}
+                <span className="font-medium">Kết quả:</span>{" "}
+                {data.runData.autoResult}
               </p>
             )}
             {data.runData.approvalState && (
               <p className="text-sm">
-                <span className="font-medium">Trạng thái:</span> {data.runData.approvalState}
+                <span className="font-medium">Trạng thái:</span>{" "}
+                {data.runData.approvalState}
               </p>
             )}
             {data.runData.performerName && (
               <p className="text-sm">
-                <span className="font-medium">Người thực hiện:</span> {data.runData.performerName}
+                <span className="font-medium">Người thực hiện:</span>{" "}
+                {data.runData.performerName}
               </p>
             )}
             {data.runData.violations && data.runData.violations.length > 0 && (
               <div className="text-sm">
                 <span className="font-medium text-red-600">Vi phạm:</span>
                 <ul className="list-disc list-inside ml-2">
-                  {data.runData.violations.map((violation: string, idx: number) => (
-                    <li key={idx} className="text-red-600">{violation}</li>
-                  ))}
+                  {data.runData.violations.map(
+                    (violation: string, idx: number) => (
+                      <li key={idx} className="text-red-600">
+                        {violation}
+                      </li>
+                    ),
+                  )}
                 </ul>
               </div>
             )}
@@ -320,24 +341,30 @@ const LjChartComponent = ({
           </p>
         )}
       </div>
-    )
-  }
+    );
+  };
 
   // Loading state
   if (isLoading) {
     return (
-      <div className={`bg-white rounded-lg border ${className}`} style={{ height }}>
+      <div
+        className={`bg-white rounded-lg border ${className}`}
+        style={{ height }}
+      >
         <div className="flex items-center justify-center h-full">
           <div className="text-gray-500">Đang tải dữ liệu...</div>
         </div>
       </div>
-    )
+    );
   }
 
   // Empty state when no valid limits
   if (!hasValidLimits) {
     return (
-      <div className={`bg-white rounded-lg border p-6 ${className}`} style={{ height }}>
+      <div
+        className={`bg-white rounded-lg border p-6 ${className}`}
+        style={{ height }}
+      >
         <h3 className="text-lg font-medium text-gray-900 mb-2">{title}</h3>
         <div className="flex items-center justify-center h-full">
           <div className="text-center text-gray-500">
@@ -346,13 +373,16 @@ const LjChartComponent = ({
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   // Empty state when no data
   if (chartData.length === 0) {
     return (
-      <div className={`bg-white rounded-lg border p-6 ${className}`} style={{ height }}>
+      <div
+        className={`bg-white rounded-lg border p-6 ${className}`}
+        style={{ height }}
+      >
         <h3 className="text-lg font-medium text-gray-900 mb-2">{title}</h3>
         <div className="flex items-center justify-center h-full">
           <div className="text-center text-gray-500">
@@ -361,21 +391,24 @@ const LjChartComponent = ({
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
-    <div className={`bg-white rounded-lg border p-6 ${className}`} style={{ height }}>
+    <div
+      className={`bg-white rounded-lg border p-6 ${className}`}
+      style={{ height }}
+    >
       <h3 className="text-lg font-medium text-gray-900 mb-4">{title}</h3>
-      
+
       <div style={{ height: height - 100 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart 
-            data={chartData} 
+          <LineChart
+            data={chartData}
             margin={{ top: 20, right: 30, bottom: 20, left: 20 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            
+
             <XAxis
               dataKey="x"
               type="number"
@@ -384,7 +417,7 @@ const LjChartComponent = ({
               tickFormatter={(value) => formatDate(new Date(value))}
               stroke="#6b7280"
             />
-            
+
             <YAxis
               type="number"
               domain={yDomain}
@@ -393,7 +426,7 @@ const LjChartComponent = ({
             />
 
             <Tooltip content={<CustomTooltip />} />
-            
+
             <Legend />
 
             {/* Reference lines for statistical limits */}
@@ -402,58 +435,58 @@ const LjChartComponent = ({
                 {/* Mean line */}
                 <ReferenceLine
                   y={numericLimits!.mean}
-                  stroke="#059669"
-                  strokeWidth={2}
+                  stroke="#4b5563"
+                  strokeWidth={1.5}
                   strokeDasharray="none"
-                  label={{ value: "Mean", position: "right" }}
+                  label={{ value: "Mean", position: "right", offset: 10 }}
                 />
-                
+
                 {/* ±1SD lines */}
                 <ReferenceLine
                   y={numericLimits!.mean + numericLimits!.sd}
-                  stroke="#0ea5e9"
+                  stroke="#a1a1aa"
                   strokeWidth={1}
                   strokeDasharray="3 3"
-                  label={{ value: "+1SD", position: "right" }}
+                  label={{ value: "+1SD", position: "right", offset: 10 }}
                 />
                 <ReferenceLine
                   y={numericLimits!.mean - numericLimits!.sd}
-                  stroke="#0ea5e9"
+                  stroke="#a1a1aa"
                   strokeWidth={1}
                   strokeDasharray="3 3"
-                  label={{ value: "-1SD", position: "right" }}
+                  label={{ value: "-1SD", position: "right", offset: 10 }}
                 />
-                
+
                 {/* ±2SD lines */}
                 <ReferenceLine
                   y={numericLimits!.mean + 2 * numericLimits!.sd}
-                  stroke="#f59e0b"
+                  stroke="#f97316"
                   strokeWidth={1}
-                  strokeDasharray="5 5"
-                  label={{ value: "+2SD", position: "right" }}
+                  strokeDasharray="3 3"
+                  label={{ value: "+2SD", position: "right", offset: 10 }}
                 />
                 <ReferenceLine
                   y={numericLimits!.mean - 2 * numericLimits!.sd}
-                  stroke="#f59e0b"
+                  stroke="#f97316"
                   strokeWidth={1}
-                  strokeDasharray="5 5"
-                  label={{ value: "-2SD", position: "right" }}
+                  strokeDasharray="3 3"
+                  label={{ value: "-2SD", position: "right", offset: 10 }}
                 />
-                
+
                 {/* ±3SD lines */}
                 <ReferenceLine
                   y={numericLimits!.mean + 3 * numericLimits!.sd}
-                  stroke="#dc2626"
+                  stroke="#ef4444"
                   strokeWidth={1}
-                  strokeDasharray="7 7"
-                  label={{ value: "+3SD", position: "right" }}
+                  strokeDasharray="3 3"
+                  label={{ value: "+3SD", position: "right", offset: 10 }}
                 />
                 <ReferenceLine
                   y={numericLimits!.mean - 3 * numericLimits!.sd}
-                  stroke="#dc2626"
+                  stroke="#ef4444"
                   strokeWidth={1}
-                  strokeDasharray="7 7"
-                  label={{ value: "-3SD", position: "right" }}
+                  strokeDasharray="3 3"
+                  label={{ value: "-3SD", position: "right", offset: 10 }}
                 />
               </>
             )}
@@ -462,14 +495,16 @@ const LjChartComponent = ({
             <Line
               name="QC Data Points"
               dataKey="value"
-              stroke="transparent"
-              strokeWidth={0}
+              stroke="#6b7280"
+              strokeOpacity={0.5}
+              strokeWidth={2}
               dot={(props: any) => {
-                const { cx, cy, payload } = props
-                if (!payload) return <g></g>
-                
-                const isGhost = payload.type === 'ghost'
-                
+                const { cx, cy, payload } = props;
+                if (!payload) return <g />;
+
+                const isGhost = payload.type === "ghost";
+                const color = payload.color || "#3b82f6";
+
                 if (isGhost) {
                   // Ghost points - hollow red dots with dashed border
                   return (
@@ -482,21 +517,22 @@ const LjChartComponent = ({
                       strokeWidth={2}
                       strokeDasharray="3,3"
                     />
-                  )
-                } else {
-                  // Real points - solid blue dots
-                  return (
-                    <circle
-                      cx={cx}
-                      cy={cy}
-                      r={4}
-                      fill="#3b82f6"
-                      stroke="#2563eb"
-                      strokeWidth={2}
-                    />
-                  )
+                  );
                 }
+
+                // Real points - colored by auto result
+                return (
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={4}
+                    fill={color}
+                    stroke={color}
+                    strokeWidth={2}
+                  />
+                );
               }}
+              activeDot={{ r: 6 }}
               connectNulls={false}
             />
           </LineChart>
@@ -517,16 +553,18 @@ const LjChartComponent = ({
             </div>
           )}
         </div>
-        
+
         {hasValidLimits && (
           <div className="mt-2 text-xs text-gray-500">
-            Mean: {numericLimits!.mean.toFixed(2)} | SD: {numericLimits!.sd.toFixed(2)} | CV: {numericLimits!.cv?.toFixed(1) || 'N/A'}%
+            Mean: {numericLimits!.mean.toFixed(2)} | SD:{" "}
+            {numericLimits!.sd.toFixed(2)} | CV:{" "}
+            {numericLimits!.cv?.toFixed(1) || "N/A"}%
           </div>
         )}
       </div>
     </div>
-  )
-}
+  );
+};
 
 // Performance optimization with React.memo
 export const LjChart = React.memo(LjChartComponent, (prevProps, nextProps) => {
@@ -541,9 +579,9 @@ export const LjChart = React.memo(LjChartComponent, (prevProps, nextProps) => {
     prevProps.limits?.mean === nextProps.limits?.mean &&
     prevProps.limits?.sd === nextProps.limits?.sd &&
     prevProps.limits?.cv === nextProps.limits?.cv
-  )
-})
+  );
+});
 
-LjChart.displayName = 'LjChart'
+LjChart.displayName = "LjChart";
 
-export default LjChart
+export default LjChart;
