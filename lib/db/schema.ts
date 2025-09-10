@@ -1,5 +1,5 @@
-import { pgTable, uuid, text, boolean, timestamp, numeric, date, integer, jsonb, index } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
+import { pgTable, uuid, text, boolean, timestamp, numeric, date, integer, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core'
+import { relations, eq, isNull } from 'drizzle-orm'
 
 // Users table for authentication and authorization
 export const users = pgTable('users', {
@@ -69,7 +69,7 @@ export const qcLots = pgTable('qc_lots', {
   notes: text('notes'),
 })
 
-// QC Limits (Mean, SD, CV) for test x level x lot x device
+// QC Limits (Mean, SD, CV) for test x level x lot x device with versioning
 export const qcLimits = pgTable('qc_limits', {
   id: uuid('id').primaryKey().defaultRandom(),
   testId: uuid('test_id').references(() => tests.id).notNull(),
@@ -81,8 +81,51 @@ export const qcLimits = pgTable('qc_limits', {
   cv: numeric('cv', { precision: 6, scale: 2 }).notNull(), // Auto-computed: sd/mean*100
   source: text('source').$type<'manufacturer' | 'lab'>().notNull(),
   createdBy: uuid('created_by').references(() => users.id),
+  // Versioning support
+  effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull().defaultNow(),
+  effectiveTo: timestamp('effective_to', { withTimezone: true }),
+  approvedBy: uuid('approved_by').references(() => users.id),
 }, (table) => ({
-  uniqueConstraint: index('qc_limits_unique_idx').on(table.testId, table.levelId, table.lotId, table.deviceId),
+  // Only one active version per group
+  activeUniqueConstraint: uniqueIndex('idx_qc_limits_active_unique').on(
+    table.testId, table.levelId, table.lotId, table.deviceId
+  ).where(isNull(table.effectiveTo)),
+  effectivePeriodIndex: index('idx_qc_limits_effective_period').on(
+    table.testId, table.levelId, table.lotId, table.deviceId, 
+    table.effectiveFrom, table.effectiveTo
+  ),
+}))
+
+// QC Limit Proposals for Rolling-N auto-recalculation with audit trail
+export const qcLimitProposals = pgTable('qc_limit_proposals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  testId: uuid('test_id').references(() => tests.id).notNull(),
+  levelId: uuid('level_id').references(() => qcLevels.id).notNull(),
+  lotId: uuid('lot_id').references(() => qcLots.id).notNull(),
+  deviceId: uuid('device_id').references(() => devices.id).notNull(),
+  rollingN: integer('rolling_n').notNull(),
+  windowFrom: timestamp('window_from', { withTimezone: true }).notNull(),
+  windowTo: timestamp('window_to', { withTimezone: true }).notNull(),
+  mean: numeric('mean', { precision: 12, scale: 4 }).notNull(),
+  sd: numeric('sd', { precision: 12, scale: 4 }).notNull(),
+  cv: numeric('cv', { precision: 6, scale: 2 }).notNull(),
+  excludedCount: integer('excluded_count').notNull().default(0),
+  excludedRules: text('excluded_rules').array().notNull().default([]),
+  reasons: jsonb('reasons').notNull().default([]),
+  notes: text('notes'),
+  status: text('status').$type<'pending' | 'approved' | 'skipped'>().notNull().default('pending'),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  approvedBy: uuid('approved_by').references(() => users.id),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  appliedLimitId: uuid('applied_limit_id').references(() => qcLimits.id),
+}, (table) => ({
+  groupStatusIndex: index('idx_qclp_group_status').on(
+    table.testId, table.levelId, table.lotId, table.deviceId, 
+    table.status, table.createdAt
+  ),
+  statusIndex: index('idx_qclp_status').on(table.status),
+  createdAtIndex: index('idx_qclp_created_at').on(table.createdAt),
 }))
 
 // Run Groups for multi-level QC entries at same time
@@ -253,6 +296,41 @@ export const qcLimitsRelations = relations(qcLimits, ({ one }) => ({
     fields: [qcLimits.createdBy],
     references: [users.id],
   }),
+  approvedByUser: one(users, {
+    fields: [qcLimits.approvedBy],
+    references: [users.id],
+  }),
+}))
+
+export const qcLimitProposalsRelations = relations(qcLimitProposals, ({ one }) => ({
+  test: one(tests, {
+    fields: [qcLimitProposals.testId],
+    references: [tests.id],
+  }),
+  device: one(devices, {
+    fields: [qcLimitProposals.deviceId],
+    references: [devices.id],
+  }),
+  level: one(qcLevels, {
+    fields: [qcLimitProposals.levelId],
+    references: [qcLevels.id],
+  }),
+  lot: one(qcLots, {
+    fields: [qcLimitProposals.lotId],
+    references: [qcLots.id],
+  }),
+  createdByUser: one(users, {
+    fields: [qcLimitProposals.createdBy],
+    references: [users.id],
+  }),
+  approvedByUser: one(users, {
+    fields: [qcLimitProposals.approvedBy],
+    references: [users.id],
+  }),
+  appliedLimit: one(qcLimits, {
+    fields: [qcLimitProposals.appliedLimitId],
+    references: [qcLimits.id],
+  }),
 }))
 
 export const runGroupsRelations = relations(runGroups, ({ many, one }) => ({
@@ -373,6 +451,8 @@ export type QcLot = typeof qcLots.$inferSelect
 export type NewQcLot = typeof qcLots.$inferInsert
 export type QcLimit = typeof qcLimits.$inferSelect
 export type NewQcLimit = typeof qcLimits.$inferInsert
+export type QcLimitProposal = typeof qcLimitProposals.$inferSelect
+export type NewQcLimitProposal = typeof qcLimitProposals.$inferInsert
 export type RunGroup = typeof runGroups.$inferSelect
 export type NewRunGroup = typeof runGroups.$inferInsert
 export type QcRun = typeof qcRuns.$inferSelect
