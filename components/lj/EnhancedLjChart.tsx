@@ -20,7 +20,8 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Calculator, TrendingUp, AlertTriangle, CheckCircle, Clock, Eye } from 'lucide-react'
-import { LjChart, type QcRun, type QcLimits } from './LjChart'
+// Switch to legacy chart for visuals (reference lines, connecting lines)
+import { LeveyJenningsChart, type QcRun as LegacyQcRun, type QcLimits as LegacyQcLimits } from './LeveyJenningsChart'
 import { GhostPoint } from './useGhostPoints'
 import { 
   useComputeRollingProposal, 
@@ -31,15 +32,16 @@ import {
 // Overlay types for limit visualization
 type OverlayType = 'current' | 'manufacturer' | 'rolling-proposal'
 
-interface OverlayLimits extends QcLimits {
+interface OverlayLimits extends LegacyQcLimits {
   source: string
   type: OverlayType
   proposal?: RollingProposalResult
+  cv?: number
 }
 
 export interface EnhancedLjChartProps {
   // Chart data
-  runs?: QcRun[]
+  runs?: LegacyQcRun[]
   ghostPoints?: GhostPoint[]
   isLoading?: boolean
   
@@ -50,8 +52,8 @@ export interface EnhancedLjChartProps {
   deviceCode: string
   
   // Current limits data
-  currentLimits?: QcLimits & { source: string }
-  manufacturerLimits?: QcLimits & { source: string }
+  currentLimits?: (LegacyQcLimits & { source: string; cv?: number })
+  manufacturerLimits?: (LegacyQcLimits & { source: string; cv?: number })
   
   // Display options
   title?: string
@@ -235,8 +237,10 @@ export function EnhancedLjChart({
             </Badge>
             <span className="text-sm text-gray-600">
               Mean: {Number(displayLimits.mean).toFixed(3)} | 
-              SD: {Number(displayLimits.sd).toFixed(3)} | 
-              CV: {Number(displayLimits.cv || 0).toFixed(1)}%
+              SD: {Number(displayLimits.sd).toFixed(3)}
+              {typeof displayLimits.cv === 'number' && (
+                <> | CV: {Number(displayLimits.cv).toFixed(1)}%</>
+              )}
             </span>
             {displayLimits.type === 'rolling-proposal' && displayLimits.proposal && (
               <Badge variant="secondary" className="text-xs">
@@ -249,11 +253,10 @@ export function EnhancedLjChart({
       </CardHeader>
 
       <CardContent>
-        <LjChart
-          limits={displayLimits}
-          ghostPoints={ghostPoints}
+        {/* Use legacy LeveyJenningsChart for styling/appearance (reference lines, connecting lines) */}
+        <LeveyJenningsChart
           runs={runs}
-          isLoading={isLoading}
+          limits={displayLimits ? { mean: Number(displayLimits.mean), sd: Number(displayLimits.sd) } : undefined}
           height={height}
           className="w-full"
         />
