@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import QuickEntryForm from '@/components/quick-entry/QuickEntryForm'
 import { LeveyJenningsChart, QcRun } from '@/components/lj/LeveyJenningsChart'
+import { EnhancedLjChart } from '@/components/lj/EnhancedLjChart'
 import { Button } from '@/components/ui/button'
 
 type QcLimits = {
@@ -144,6 +145,51 @@ function QuickEntryUnifiedInner() {
     },
     enabled: !!selection,
   })
+
+  // Resolve codes from selected IDs to enable Rolling-N proposal workflow
+  const { data: devices } = useQuery<any[]>({
+    queryKey: ['devices:list'],
+    queryFn: () => fetch('/api/devices').then((r) => r.json()),
+    enabled: !!selection,
+  })
+  const { data: tests } = useQuery<any[]>({
+    queryKey: ['tests:list'],
+    queryFn: () => fetch('/api/tests').then((r) => r.json()),
+    enabled: !!selection,
+  })
+  const { data: levelsList } = useQuery<any[]>({
+    queryKey: ['qc-levels:byTest', selection?.testId],
+    queryFn: async () => {
+      if (!selection?.testId) return []
+      const res = await fetch(`/api/qc/levels?testId=${selection.testId}`)
+      return res.ok ? res.json() : []
+    },
+    enabled: !!selection?.testId,
+  })
+  const { data: lotsList } = useQuery<any[]>({
+    queryKey: ['qc-lots:byLevel', selection?.levelId],
+    queryFn: async () => {
+      if (!selection?.levelId) return []
+      const res = await fetch(`/api/qc/lots?levelId=${selection.levelId}`)
+      return res.ok ? res.json() : []
+    },
+    enabled: !!selection?.levelId,
+  })
+
+  const resolvedCodes = React.useMemo(() => {
+    if (!selection) return null
+    const device = devices?.find((d) => d.id === selection.deviceId)
+    const test = tests?.find((t) => t.id === selection.testId)
+    const level = levelsList?.find((lv) => lv.id === selection.levelId)
+    const lot = lotsList?.find((lt) => lt.id === selection.lotId)
+    if (!device || !test || !level || !lot) return null
+    return {
+      deviceCode: device.code as string,
+      testCode: test.code as string,
+      levelLabel: (level.level as 'L1' | 'L2' | 'L3') ?? 'L1',
+      lotCode: lot.lotCode as string,
+    }
+  }, [selection, devices, tests, levelsList, lotsList])
 
   // Fetch QC runs for chart. Important: use the same query key family that cache updates target ('qc-runs', ...)
   const {
@@ -347,11 +393,23 @@ function QuickEntryUnifiedInner() {
             Không có dữ liệu trong khoảng đã chọn.
           </div>
         ) : (
-          <LeveyJenningsChart
-            limits={effectiveLimits ? { mean: Number(effectiveLimits.mean), sd: Number(effectiveLimits.sd) } : undefined}
-            runs={chartData}
-            height={500}
-          />
+          resolvedCodes ? (
+            <EnhancedLjChart
+              runs={chartData}
+              testCode={resolvedCodes.testCode}
+              level={resolvedCodes.levelLabel}
+              lotCode={resolvedCodes.lotCode}
+              deviceCode={resolvedCodes.deviceCode}
+              currentLimits={effectiveLimits ? { mean: Number(effectiveLimits.mean), sd: Number(effectiveLimits.sd), cv: effectiveLimits.cv ? Number(effectiveLimits.cv) : undefined, source: 'current' } : undefined}
+              height={500}
+            />
+          ) : (
+            <LeveyJenningsChart
+              limits={effectiveLimits ? { mean: Number(effectiveLimits.mean), sd: Number(effectiveLimits.sd) } : undefined}
+              runs={chartData}
+              height={500}
+            />
+          )
         )}
       </div>
       )}

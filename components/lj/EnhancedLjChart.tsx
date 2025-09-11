@@ -205,23 +205,25 @@ export function EnhancedLjChart({
                   Rolling-N
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="sm:max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col">
                 <DialogHeader>
                   <DialogTitle>Compute Rolling-N QC Limits Proposal</DialogTitle>
                 </DialogHeader>
-                <RollingProposalDialog
-                  testCode={testCode}
-                  level={level}
-                  lotCode={lotCode}
-                  deviceCode={deviceCode}
-                  rollingN={rollingN}
-                  setRollingN={setRollingN}
-                  proposalResult={proposalResult}
-                  isComputing={computeProposal.isPending}
-                  isCreating={createProposal.isPending}
-                  onCompute={handleComputeProposal}
-                  onCreate={handleCreateProposal}
-                />
+                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                  <RollingProposalDialog
+                    testCode={testCode}
+                    level={level}
+                    lotCode={lotCode}
+                    deviceCode={deviceCode}
+                    rollingN={rollingN}
+                    setRollingN={setRollingN}
+                    proposalResult={proposalResult}
+                    isComputing={computeProposal.isPending}
+                    isCreating={createProposal.isPending}
+                    onCompute={handleComputeProposal}
+                    onCreate={handleCreateProposal}
+                  />
+                </div>
               </DialogContent>
             </Dialog>
           </div>
