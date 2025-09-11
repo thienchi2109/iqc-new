@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+  "predev": "node scripts/check-case-sensitivity.cjs",
+  "dev": "next dev",
+  "prebuild": "node scripts/check-case-sensitivity.cjs",
+  "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
