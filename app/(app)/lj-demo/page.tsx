@@ -66,14 +66,16 @@ const generateMockRuns = (count: number) => {
     const noise = (Math.random() - 0.5) * baseSd * 2
     const value = baseValue + trend + noise
     
+    const auto: 'pass' | 'warn' | 'fail' = Math.abs((value - baseValue) / baseSd) > 2 ? 'fail' : 
+                  Math.abs((value - baseValue) / baseSd) > 1 ? 'warn' : 'pass'
     runs.push({
       id: `run-${i}`,
       value: Number(value.toFixed(3)),
       z: Number(((value - baseValue) / baseSd).toFixed(2)),
       runAt: date.toISOString(),
-      autoResult: Math.abs((value - baseValue) / baseSd) > 2 ? 'fail' : 
-                  Math.abs((value - baseValue) / baseSd) > 1 ? 'warn' : 'pass',
-      approvalState: 'approved',
+      createdAt: date.toISOString(),
+      autoResult: auto,
+  approvalState: 'approved' as 'approved',
       performerName: `Tech${(i % 3) + 1}`,
     })
   }
