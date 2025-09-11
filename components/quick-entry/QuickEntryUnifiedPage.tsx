@@ -4,7 +4,8 @@ import React, { useState, useCallback, useEffect, Suspense } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import QuickEntryForm from '@/components/quick-entry/QuickEntryForm'
-import { LeveyJenningsChart, QcRun } from '@/components/lj/LeveyJenningsChart'
+import { EnhancedLjChart } from '@/components/lj/EnhancedLjChart'
+import { type QcRun } from '@/components/lj/LjChart'
 import { Button } from '@/components/ui/button'
 
 type QcLimits = {
@@ -34,8 +35,6 @@ function QuickEntryUnifiedInner() {
     return null
   })
 
-  // Limits pushed up from form when available
-  const [limits, setLimits] = useState<QcLimits | null>(null)
   // Force form remount on external reset
   const [formResetKey, setFormResetKey] = useState(0)
   // Tab state persisted in URL
@@ -100,13 +99,8 @@ function QuickEntryUnifiedInner() {
     updateURL(newSelection)
   }, [updateURL])
 
-  const handleLimitsChange = useCallback((newLimits: QcLimits | null) => {
-    setLimits(newLimits)
-  }, [])
-
   const handleClearSelection = useCallback(() => {
     setSelection(null)
-    setLimits(null)
     updateURL(null)
     setFormResetKey((k) => k + 1)
   }, [updateURL])
@@ -127,11 +121,19 @@ function QuickEntryUnifiedInner() {
     updateURL(selection, undefined, undefined, tab)
   }, [selection, updateURL])
 
-  // Fetch QC limits (fallback) in case limits not available from form yet
-  const { data: fetchedLimits } = useQuery<{ mean: number; sd: number; cv?: number } | null>({
+  // Fetch all QC limits for overlays
+  interface LimitRecord extends QcLimits {
+    source: string
+    test: string
+    device: string
+    level: string
+    lot: string
+  }
+
+  const { data: fetchedLimits = [] } = useQuery<LimitRecord[]>({
     queryKey: ['qc-limits', selection?.testId, selection?.levelId, selection?.lotId, selection?.deviceId],
     queryFn: async () => {
-      if (!selection) return null
+      if (!selection) return []
       const params = new URLSearchParams()
       params.append('testId', selection.testId)
       params.append('levelId', selection.levelId)
@@ -140,10 +142,26 @@ function QuickEntryUnifiedInner() {
       const res = await fetch(`/api/qc/limits?${params}`)
       if (!res.ok) throw new Error('Failed to fetch QC limits')
       const data = await res.json()
-      return Array.isArray(data) && data.length > 0 ? data[0] : null
+      return Array.isArray(data) ? data : []
     },
     enabled: !!selection,
   })
+
+  const currentLimitRecord = fetchedLimits.find((l) => l.source === 'lab')
+  const manufacturerLimitRecord = fetchedLimits.find((l) => l.source === 'manufacturer')
+
+  const currentLimits = currentLimitRecord
+    ? { mean: currentLimitRecord.mean, sd: currentLimitRecord.sd, cv: currentLimitRecord.cv, source: 'lab' as const }
+    : undefined
+
+  const manufacturerLimits = manufacturerLimitRecord
+    ? {
+        mean: manufacturerLimitRecord.mean,
+        sd: manufacturerLimitRecord.sd,
+        cv: manufacturerLimitRecord.cv,
+        source: 'manufacturer' as const,
+      }
+    : undefined
 
   // Fetch QC runs for chart. Important: use the same query key family that cache updates target ('qc-runs', ...)
   const {
@@ -171,6 +189,11 @@ function QuickEntryUnifiedInner() {
     },
     enabled: !!selection,
   })
+
+  const testCode = currentLimitRecord?.test || manufacturerLimitRecord?.test || chartData?.[0]?.testCode || ''
+  const deviceCode = currentLimitRecord?.device || manufacturerLimitRecord?.device || chartData?.[0]?.deviceCode || ''
+  const levelCode = currentLimitRecord?.level || manufacturerLimitRecord?.level || chartData?.[0]?.level || ''
+  const lotCode = currentLimitRecord?.lot || manufacturerLimitRecord?.lot || chartData?.[0]?.lotCode || ''
 
   // Count total runs for current filters (independent of limit)
   const { data: runsMeta } = useQuery<{ total: number } | null>({
@@ -203,8 +226,6 @@ function QuickEntryUnifiedInner() {
       refetchRuns()
     }
   }, [selection, dateRange.from, dateRange.to, pointCount, refetchRuns])
-
-  const effectiveLimits = limits || fetchedLimits
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -239,39 +260,12 @@ function QuickEntryUnifiedInner() {
         </div>
       </div>
 
-      {/* QC Limits Info */}
-      {effectiveLimits && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="text-lg font-medium text-blue-900 mb-2">Giới hạn QC hiện tại</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-            <div>
-              <span className="font-medium text-blue-700">Mean:</span>
-              <span className="ml-2 font-mono">{Number(effectiveLimits.mean).toFixed(2)}</span>
-            </div>
-            <div>
-              <span className="font-medium text-blue-700">SD:</span>
-              <span className="ml-2 font-mono">{Number(effectiveLimits.sd).toFixed(3)}</span>
-            </div>
-            <div>
-              <span className="font-medium text-blue-700">CV:</span>
-              <span className="ml-2 font-mono">{effectiveLimits.cv ? `${Number(effectiveLimits.cv).toFixed(1)}%` : 'N/A'}</span>
-            </div>
-            <div>
-              <span className="font-medium text-blue-700">Range:</span>
-              <span className="ml-2 font-mono">
-                {(Number(effectiveLimits.mean) - 3 * Number(effectiveLimits.sd)).toFixed(2)} - {(Number(effectiveLimits.mean) + 3 * Number(effectiveLimits.sd)).toFixed(2)}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Quick Entry Form (keep mounted to preserve state across tabs) */}
       <div className={`bg-white rounded-lg border shadow-sm p-6 ${activeTab !== 'entry' ? 'hidden' : ''}`}>
         <QuickEntryForm
           key={formResetKey}
           onSelectionChange={handleSelectionChange}
-          onLimitsChange={handleLimitsChange}
           onClearSelection={handleClearSelection}
           onSubmitSuccess={() => switchTab('chart')}
         />
@@ -323,17 +317,6 @@ function QuickEntryUnifiedInner() {
       {/* Embedded LJ Chart */}
       {activeTab === 'chart' && (
       <div className="bg-white rounded-lg border shadow-sm p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Biểu đồ Levey-Jennings
-            {effectiveLimits && (
-              <span className="text-sm font-normal text-gray-600 ml-2">
-                (Mean: {Number(effectiveLimits.mean)}, SD: {Number(effectiveLimits.sd)})
-              </span>
-            )}
-          </h2>
-        </div>
-
         {!selection ? (
           <div className="h-96 flex items-center justify-center text-gray-500">
             Vui lòng chọn thiết bị, xét nghiệm, mức và lô để xem biểu đồ.
@@ -347,9 +330,15 @@ function QuickEntryUnifiedInner() {
             Không có dữ liệu trong khoảng đã chọn.
           </div>
         ) : (
-          <LeveyJenningsChart
-            limits={effectiveLimits ? { mean: Number(effectiveLimits.mean), sd: Number(effectiveLimits.sd) } : undefined}
+          <EnhancedLjChart
             runs={chartData}
+            isLoading={isRunsLoading}
+            testCode={testCode}
+            level={levelCode as 'L1' | 'L2' | 'L3'}
+            lotCode={lotCode}
+            deviceCode={deviceCode}
+            currentLimits={currentLimits}
+            manufacturerLimits={manufacturerLimits}
             height={500}
           />
         )}
