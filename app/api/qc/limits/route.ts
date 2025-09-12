@@ -132,6 +132,7 @@ export const GET = withAuth(
       const levelId = searchParams.get('levelId')
       const lotId = searchParams.get('lotId')
       const deviceId = searchParams.get('deviceId')
+      const active = searchParams.get('active')
 
       // Query with joins to return pretty fields instead of raw UUIDs
       let query = db
@@ -168,12 +169,22 @@ export const GET = withAuth(
       if (levelId) conditions.push(eq(qcLimits.levelId, levelId))
       if (lotId) conditions.push(eq(qcLimits.lotId, lotId))
       if (deviceId) conditions.push(eq(qcLimits.deviceId, deviceId))
+      // Only active (current) version
+      if (active && active !== 'false') {
+        // effective_to IS NULL indicates current/active limit in versioning
+        conditions.push(sql`${qcLimits.effectiveTo} IS NULL`)
+      }
 
       if (conditions.length > 0) {
         query = query.where(and(...conditions)) as typeof query
       }
 
-      const limits = await query.orderBy(tests.code, qcLevels.level, qcLots.lotCode)
+      // Prefer most recent first when looking for a specific group's limit
+      const limits = await query.orderBy(
+        active && active !== 'false'
+          ? sql`${qcLimits.effectiveFrom} DESC`
+          : sql`${tests.code}, ${qcLevels.level}, ${qcLots.lotCode}`
+      )
 
       // Convert numeric fields to numbers for frontend consumption
       const processedLimits = limits.map(limit => ({

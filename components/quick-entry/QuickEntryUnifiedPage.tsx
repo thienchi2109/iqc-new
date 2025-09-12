@@ -138,6 +138,7 @@ function QuickEntryUnifiedInner() {
       params.append('levelId', selection.levelId)
       params.append('lotId', selection.lotId)
       params.append('deviceId', selection.deviceId)
+      params.append('active', 'true')
       const res = await fetch(`/api/qc/limits?${params}`)
       if (!res.ok) throw new Error('Failed to fetch QC limits')
       const data = await res.json()
@@ -250,7 +251,7 @@ function QuickEntryUnifiedInner() {
     }
   }, [selection, dateRange.from, dateRange.to, pointCount, refetchRuns])
 
-  const effectiveLimits = limits || fetchedLimits
+  const effectiveLimits = fetchedLimits || limits
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -284,33 +285,6 @@ function QuickEntryUnifiedInner() {
           </button>
         </div>
       </div>
-
-      {/* QC Limits Info */}
-      {effectiveLimits && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="text-lg font-medium text-blue-900 mb-2">Giới hạn QC hiện tại</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-            <div>
-              <span className="font-medium text-blue-700">Mean:</span>
-              <span className="ml-2 font-mono">{Number(effectiveLimits.mean).toFixed(2)}</span>
-            </div>
-            <div>
-              <span className="font-medium text-blue-700">SD:</span>
-              <span className="ml-2 font-mono">{Number(effectiveLimits.sd).toFixed(3)}</span>
-            </div>
-            <div>
-              <span className="font-medium text-blue-700">CV:</span>
-              <span className="ml-2 font-mono">{effectiveLimits.cv ? `${Number(effectiveLimits.cv).toFixed(1)}%` : 'N/A'}</span>
-            </div>
-            <div>
-              <span className="font-medium text-blue-700">Range:</span>
-              <span className="ml-2 font-mono">
-                {(Number(effectiveLimits.mean) - 3 * Number(effectiveLimits.sd)).toFixed(2)} - {(Number(effectiveLimits.mean) + 3 * Number(effectiveLimits.sd)).toFixed(2)}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Quick Entry Form (keep mounted to preserve state across tabs) */}
       <div className={`bg-white rounded-lg border shadow-sm p-6 ${activeTab !== 'entry' ? 'hidden' : ''}`}>
@@ -429,3 +403,4 @@ export default function QuickEntryUnifiedPage() {
     </Suspense>
   )
 }
+

@@ -175,6 +175,8 @@ export function QuickEntryForm({
       if (levels[0]?.lotId) {
         params.append('lotId', levels[0].lotId)
       }
+      // Only fetch active (current) limits to ensure UI stays consistent after approvals
+      params.append('active', 'true')
       const response = await fetch(`/api/qc/limits?${params}`)
       if (!response.ok) return null
       const data = await response.json()
@@ -196,6 +198,7 @@ export function QuickEntryForm({
       if (levels[1]?.lotId) {
         params.append('lotId', levels[1].lotId)
       }
+      params.append('active', 'true')
       const response = await fetch(`/api/qc/limits?${params}`)
       if (!response.ok) return null
       const data = await response.json()
@@ -216,6 +219,7 @@ export function QuickEntryForm({
       if (levels[2]?.lotId) {
         params.append('lotId', levels[2].lotId)
       }
+      params.append('active', 'true')
       const response = await fetch(`/api/qc/limits?${params}`)
       if (!response.ok) return null
       const data = await response.json()
