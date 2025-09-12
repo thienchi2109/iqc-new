@@ -29,6 +29,29 @@ type RunRow = {
   lotCode?: string
 }
 
+type ViolationSummary = { ruleCode: string; count: number }
+type NonconformingItem = {
+  id: string
+  at: string
+  deviceName?: string
+  testName?: string
+  level?: string
+  lotCode?: string
+  ruleCode: string
+  severity: 'warn' | 'fail'
+  capaStatus?: string | null
+}
+type LimitHistoryItem = {
+  id: string
+  mean: number
+  sd: number
+  cv: number
+  source: string
+  effectiveFrom: string
+  effectiveTo: string | null
+  approvedByName?: string | null
+}
+
 export default function Reports() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
@@ -74,6 +97,52 @@ export default function Reports() {
       params.append("pageSize", "25")
       const res = await fetch(`/api/reports/runs?${params.toString()}`)
       if (!res.ok) throw new Error("Failed to load runs")
+      return res.json()
+    },
+  })
+
+  // Violations summary
+  const { data: violationsSummary } = useQuery<{ items: ViolationSummary[] }>({
+    queryKey: ["reports-violations", dateFrom, dateTo, deviceId, testId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (dateFrom) params.append("from", dateFrom)
+      if (dateTo) params.append("to", dateTo)
+      if (deviceId) params.append("deviceId", deviceId)
+      if (testId) params.append("testId", testId)
+      const res = await fetch(`/api/reports/violations?${params.toString()}`)
+      if (!res.ok) throw new Error("Failed to load violations summary")
+      return res.json()
+    },
+  })
+
+  // Nonconforming log
+  const { data: nonconforming } = useQuery<{ data: NonconformingItem[]; meta: any }>({
+    queryKey: ["reports-nonconforming", dateFrom, dateTo, deviceId, testId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (dateFrom) params.append("from", dateFrom)
+      if (dateTo) params.append("to", dateTo)
+      if (deviceId) params.append("deviceId", deviceId)
+      if (testId) params.append("testId", testId)
+      params.append("page", "1")
+      params.append("pageSize", "25")
+      const res = await fetch(`/api/reports/nonconforming?${params.toString()}`)
+      if (!res.ok) throw new Error("Failed to load nonconforming log")
+      return res.json()
+    },
+  })
+
+  // Limits history (requires all ids; page currently has only device/test filters, so will show when available)
+  const { data: limitsHistory } = useQuery<{ data: LimitHistoryItem[] }>({
+    queryKey: ["reports-limits-history", deviceId, testId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (deviceId) params.append("deviceId", deviceId)
+      if (testId) params.append("testId", testId)
+      // Optional: await more fields (levelId, lotId) once added to filters
+      const res = await fetch(`/api/reports/limits-history?${params.toString()}`)
+      if (!res.ok) return { data: [] }
       return res.json()
     },
   })
@@ -228,6 +297,121 @@ export default function Reports() {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Violations summary */}
+      <div className="bg-white rounded-2xl shadow-md border border-gray-200">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">Tổng hợp vi phạm (Westgard)</h2>
+        </div>
+        <div className="p-4">
+          {!violationsSummary?.items?.length ? (
+            <div className="text-sm text-gray-500">Không có vi phạm trong phạm vi đã chọn.</div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quy tắc</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số lần</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tỉ lệ/100 runs</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {violationsSummary.items.map((v) => (
+                  <tr key={v.ruleCode}>
+                    <td className="px-6 py-3 text-sm text-gray-900">{v.ruleCode}</td>
+                    <td className="px-6 py-3 text-sm text-gray-900">{v.count}</td>
+                    <td className="px-6 py-3 text-sm text-gray-900">
+                      {summary?.totalRuns ? ((v.count / summary.totalRuns) * 100).toFixed(1) : '0.0'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* Nonconforming log (simple) */}
+      <div className="bg-white rounded-2xl shadow-md border border-gray-200">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">Sổ Nonconforming</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thời gian</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thiết bị</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Xét nghiệm</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mức</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lô</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rule</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mức độ</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CAPA</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {!nonconforming?.data?.length ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">Không có bản ghi phù hợp</td>
+                </tr>
+              ) : (
+                nonconforming.data.map((n) => (
+                  <tr key={n.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(n.at).toLocaleString()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{n.deviceName ?? ''}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{n.testName ?? ''}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{n.level ?? ''}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{n.lotCode ?? ''}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{n.ruleCode}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{n.severity}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{n.capaStatus ?? '-'}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Limits history (requires full selection) */}
+      <div className="bg-white rounded-2xl shadow-md border border-gray-200">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">Lịch sử giới hạn</h2>
+        </div>
+        <div className="p-4">
+          {!limitsHistory?.data?.length ? (
+            <div className="text-sm text-gray-500">Chọn đầy đủ Device, Test, Level, Lot để xem lịch sử.</div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hiệu lực từ</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Đến</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mean</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SD</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CV%</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nguồn</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người duyệt</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {limitsHistory.data.map((h) => (
+                  <tr key={h.id}>
+                    <td className="px-6 py-3 text-sm text-gray-900">{new Date(h.effectiveFrom).toLocaleString()}</td>
+                    <td className="px-6 py-3 text-sm text-gray-900">{h.effectiveTo ? new Date(h.effectiveTo).toLocaleString() : '-'}</td>
+                    <td className="px-6 py-3 text-sm text-gray-900">{h.mean.toFixed(3)}</td>
+                    <td className="px-6 py-3 text-sm text-gray-900">{h.sd.toFixed(3)}</td>
+                    <td className="px-6 py-3 text-sm text-gray-900">{h.cv.toFixed(2)}</td>
+                    <td className="px-6 py-3 text-sm text-gray-900">{h.source}</td>
+                    <td className="px-6 py-3 text-sm text-gray-900">{h.approvedByName ?? '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

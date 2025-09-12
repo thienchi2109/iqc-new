@@ -1,6 +1,6 @@
 import { and, between, count, desc, eq, gte, lte, sql } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
-import { qcRuns, violations, runGroups, tests, devices, qcLevels, qcLots } from '@/lib/db/schema'
+import { qcRuns, violations, runGroups, tests, devices, qcLevels, qcLots, qcLimits, users, capa } from '@/lib/db/schema'
 
 export interface ReportFilters {
   from?: string
@@ -191,3 +191,127 @@ export async function getRunsPage(filters: ReportFilters, page = 1, pageSize = 2
   }
 }
 
+// --- Nonconforming log (violations + CAPA info if present) ---
+export interface NonconformingItem {
+  id: string
+  at: Date
+  deviceCode?: string
+  deviceName?: string
+  testCode?: string
+  testName?: string
+  level?: string
+  lotCode?: string
+  ruleCode: string
+  severity: 'warn' | 'fail'
+  capaStatus?: string | null
+}
+
+export async function getNonconformingLog(filters: ReportFilters, page = 1, pageSize = 25) {
+  const where = buildCommonWhere(filters)
+  const offset = (page - 1) * pageSize
+
+  const rows = await db
+    .select({
+      id: violations.id,
+      at: runGroups.runAt,
+      createdAt: violations.createdAt,
+      deviceCode: devices.code,
+      deviceName: devices.name,
+      testCode: tests.code,
+      testName: tests.name,
+      level: qcLevels.level,
+      lotCode: qcLots.lotCode,
+      ruleCode: violations.ruleCode,
+      severity: violations.severity,
+      capaStatus: capa.status,
+    })
+    .from(violations)
+    .leftJoin(qcRuns, eq(qcRuns.id, violations.runId))
+    .leftJoin(runGroups, eq(runGroups.id, qcRuns.groupId))
+    .leftJoin(devices, eq(devices.id, qcRuns.deviceId))
+    .leftJoin(tests, eq(tests.id, qcRuns.testId))
+    .leftJoin(qcLevels, eq(qcLevels.id, qcRuns.levelId))
+    .leftJoin(qcLots, eq(qcLots.id, qcRuns.lotId))
+    .leftJoin(capa, eq(capa.runId, qcRuns.id))
+    .where(and(...where))
+    .orderBy(desc(violations.createdAt))
+    .limit(pageSize)
+    .offset(offset)
+
+  const totalRows = await db
+    .select({ c: count() })
+    .from(violations)
+    .leftJoin(qcRuns, eq(qcRuns.id, violations.runId))
+    .where(and(...where))
+
+  const items: NonconformingItem[] = rows.map(r => ({
+    id: r.id,
+    at: r.at ?? r.createdAt!,
+    deviceCode: r.deviceCode ?? undefined,
+    deviceName: r.deviceName ?? undefined,
+    testCode: r.testCode ?? undefined,
+    testName: r.testName ?? undefined,
+    level: r.level ?? undefined,
+    lotCode: r.lotCode ?? undefined,
+    ruleCode: r.ruleCode!,
+    severity: r.severity as 'warn' | 'fail',
+    capaStatus: r.capaStatus ?? null,
+  }))
+
+  return {
+    data: items,
+    meta: {
+      page,
+      pageSize,
+      total: Number(totalRows[0]?.c ?? 0),
+      totalPages: Math.ceil(Number(totalRows[0]?.c ?? 0) / pageSize),
+    },
+  }
+}
+
+// --- Limits history for a group ---
+export interface LimitHistoryItem {
+  id: string
+  mean: number
+  sd: number
+  cv: number
+  source: string
+  effectiveFrom: Date
+  effectiveTo: Date | null
+  approvedByName?: string | null
+}
+
+export async function getLimitsHistory(filters: Required<Pick<ReportFilters, 'testId' | 'levelId' | 'lotId' | 'deviceId'>>) {
+  const { testId, levelId, lotId, deviceId } = filters
+  const rows = await db
+    .select({
+      id: qcLimits.id,
+      mean: qcLimits.mean,
+      sd: qcLimits.sd,
+      cv: qcLimits.cv,
+      source: qcLimits.source,
+      effectiveFrom: qcLimits.effectiveFrom,
+      effectiveTo: qcLimits.effectiveTo,
+      approvedByName: users.name,
+    })
+    .from(qcLimits)
+    .leftJoin(users, eq(users.id, qcLimits.approvedBy))
+    .where(and(
+      eq(qcLimits.testId, testId),
+      eq(qcLimits.levelId, levelId),
+      eq(qcLimits.lotId, lotId),
+      eq(qcLimits.deviceId, deviceId),
+    ))
+    .orderBy(desc(qcLimits.effectiveFrom))
+
+  return rows.map(r => ({
+    id: r.id,
+    mean: Number(r.mean),
+    sd: Number(r.sd),
+    cv: Number(r.cv),
+    source: r.source!,
+    effectiveFrom: r.effectiveFrom!,
+    effectiveTo: r.effectiveTo ?? null,
+    approvedByName: r.approvedByName ?? null,
+  })) as LimitHistoryItem[]
+}
