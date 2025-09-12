@@ -30,6 +30,8 @@ import {
 } from '@/components/ui/table'
 import { toast } from 'sonner'
 import { CheckIcon, XIcon, ClockIcon, AlertTriangleIcon } from 'lucide-react'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import QcLimitsProposalsInbox from '@/components/QcLimitsProposalsInbox'
 
 interface PendingRun {
   id: string
@@ -105,6 +107,30 @@ export default function ApprovalInboxPage() {
   // Check user permissions
   const userRole = session?.user?.role
   const canApprove = ['supervisor', 'qaqc', 'admin'].includes(userRole || '')
+
+  // Pending counts for tabs
+  const { data: runsPendingCount } = useQuery({
+    queryKey: ['pending-qc-runs-count'],
+    queryFn: async () => {
+      const params = new URLSearchParams({ approvalState: 'pending', limit: '1', offset: '0', includeCount: 'true' })
+      const res = await fetch(`/api/qc/runs?${params.toString()}`)
+      if (!res.ok) return 0
+      const json = await res.json()
+      return json.total ?? json.pagination?.total ?? 0
+    },
+    staleTime: 30_000,
+  })
+
+  const { data: proposalsPendingCount } = useQuery({
+    queryKey: ['pending-proposals-count'],
+    queryFn: async () => {
+      const res = await fetch('/api/qc/limits/proposals?status=pending&limit=1')
+      if (!res.ok) return 0
+      const json = await res.json()
+      return json.pagination?.total ?? json.total ?? 0
+    },
+    staleTime: 30_000,
+  })
 
   // Always call hooks in the same order
   // Fetch pending runs (always call, but conditionally enable)
@@ -433,6 +459,24 @@ export default function ApprovalInboxPage() {
         <p className="text-gray-600 mt-1">Xem xét và duyệt hoặc Từ chối các lần chạy QC đang chờ. Các lần chạy &quot;không đạt&quot; cần CAPA hoặc lần chạy đạt sau đó trước khi duyệt.</p>
       </div>
 
+      {/* QC Limits Proposals Inbox (Rolling‑N) */}
+      <Tabs defaultValue="qc-runs" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="qc-runs" className="flex items-center gap-2">
+            QC Runs
+            {!!runsPendingCount && runsPendingCount > 0 && (
+              <Badge variant="destructive" className="ml-1 px-1.5 py-0.5 text-xs">{runsPendingCount}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="qc-limits" className="flex items-center gap-2">
+            QC Limits Proposals
+            {!!proposalsPendingCount && proposalsPendingCount > 0 && (
+              <Badge variant="destructive" className="ml-1 px-1.5 py-0.5 text-xs">{proposalsPendingCount}</Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="qc-runs">
       {/* Filters */}
       <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Bộ lọc</h2>
@@ -782,6 +826,11 @@ export default function ApprovalInboxPage() {
         selectedCount={selectedRunIds.size}
         isLoading={bulkRejectMutation.isPending}
       />
+        </TabsContent>
+        <TabsContent value="qc-limits">
+          <QcLimitsProposalsInbox />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

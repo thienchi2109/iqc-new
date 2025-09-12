@@ -117,3 +117,21 @@ input[type="number"]::-webkit-inner-spin-button {
     @apply bg-background text-foreground;
   }
 }
+
+/* Print styles for audit PDF (client-side) */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm 10mm;
+  }
+  html, body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* Hide interactive UI on print */
+  .print\:hidden { display: none !important; }
+  /* Ensure cards/tables break nicely */
+  .avoid-break { break-inside: avoid; }
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; page-break-after: auto; }
+}

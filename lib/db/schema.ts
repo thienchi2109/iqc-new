@@ -48,6 +48,24 @@ export const tests = pgTable('tests', {
   isActive: boolean('is_active').default(true),
 })
 
+// Performance goals (TEa) per test/method/unit with versioning (for Sigma)
+export const testPerformanceGoals = pgTable('test_performance_goals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  testId: uuid('test_id').references(() => tests.id).notNull(),
+  methodId: uuid('method_id').references(() => methods.id),
+  unitId: uuid('unit_id').references(() => units.id),
+  teaPercent: numeric('tea_percent', { precision: 10, scale: 4 }), // e.g., 10.0 means 10%
+  teaAbsolute: numeric('tea_absolute', { precision: 14, scale: 6 }), // optional absolute TEa
+  source: text('source'), // CLIA/CAP/biologic/clinic/etc.
+  referenceUrl: text('reference_url'),
+  effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull().defaultNow(),
+  effectiveTo: timestamp('effective_to', { withTimezone: true }),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  idxGoalsActive: index('idx_tpg_active').on(table.testId, table.methodId, table.unitId, table.effectiveFrom, table.effectiveTo),
+}))
+
 // QC Levels (L1, L2, L3) for each test
 export const qcLevels = pgTable('qc_levels', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -254,6 +272,7 @@ export const testsRelations = relations(tests, ({ many, one }) => ({
     fields: [tests.defaultMethodId],
     references: [methods.id],
   }),
+  performanceGoals: many(testPerformanceGoals),
 }))
 
 export const qcLevelsRelations = relations(qcLevels, ({ many, one }) => ({
